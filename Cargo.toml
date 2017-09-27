@@ -5,6 +5,8 @@ authors = ["Rg <zhenghuarong@kibey.com>"]
 
 [dependencies]
 sha2 = "0.6.0"
+time = "0.1"
+clippy = "*"
 
 [[bin]]
 path = "src/main.rs"
