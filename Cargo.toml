@@ -4,3 +4,8 @@ version = "0.1.0"
 authors = ["Rg <zhenghuarong@kibey.com>"]
 
 [dependencies]
+sha2 = "0.6.0"
+
+[[bin]]
+path = "src/main.rs"
+name = "bitcoin"
