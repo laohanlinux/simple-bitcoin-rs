@@ -1,0 +1,6 @@
+[package]
+name = "simple-bitcoin-rs"
+version = "0.1.0"
+authors = ["Rg <zhenghuarong@kibey.com>"]
+
+[dependencies]
