@@ -6,7 +6,13 @@ authors = ["Rg <zhenghuarong@kibey.com>"]
 [dependencies]
 sha2 = "0.6.0"
 time = "0.1"
-clippy = "*"
+leveldb = "0.8"
+
+serde = "1.0"
+serde_derive = "1.0"
+
+# serde_json is just for the example, not required in general
+serde_json = "1.0"
 
 [[bin]]
 path = "src/main.rs"

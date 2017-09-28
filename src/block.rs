@@ -1,12 +1,16 @@
+extern crate serde;
+extern crate serde_json;
+
 extern crate sha2;
 extern crate time;
 
 use std::io::Write;
+use std::cell::RefCell;
 
 use sha2::{Sha256, Digest};
 
-#[derive(Debug)]
-struct Block {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Block {
     timestamp: i64,
     data: Vec<u8>,
     prev_block_hash: Vec<u8>,
@@ -14,15 +18,24 @@ struct Block {
 }
 
 impl Block {
-    fn new(data: String, prev_block_hash: Vec<u8>) -> Self {
+    pub fn new(data: String, prev_block_hash: Vec<u8>) -> Block {
+        let data_bytes = data.into_bytes();
         let mut block = Block {
             timestamp: time::get_time().sec,
-            data: data.into_bytes(),
+            data: data_bytes,
             prev_block_hash: prev_block_hash,
-            hash: Vec::new()
+            hash: Vec::new(),
         };
         block.set_hash();
         block
+    }
+
+    pub fn serialize(block: &Block) -> Vec<u8> {
+        serde_json::to_string(block).unwrap().into_bytes()
+    }
+
+    pub fn deserialize_block(data: &Vec<u8>) -> Self {
+        serde_json::from_str(&String::from_utf8_lossy(data)).unwrap()
     }
 
     fn new_genesis_block() -> Self {
@@ -35,8 +48,8 @@ impl Block {
         write!(&mut timestamp_buf, "{}", self.timestamp).unwrap();
 
         let mut header = Vec::new();
-        header.append(&mut self.prev_block_hash);
-        header.append(&mut self.data);
+        header.append(&mut self.prev_block_hash.clone());
+        header.append(&mut self.data.clone());
         header.append(&mut timestamp_buf);
 
         let mut hasher = Sha256::default();
@@ -47,35 +60,35 @@ impl Block {
 }
 
 #[derive(Debug)]
-struct BlockChain {
-    blocks: Vec<Block>,
+pub struct BlockChain {
+    blocks: RefCell<Vec<Block>>,
 }
 
 impl BlockChain {
     fn new() -> Self {
         let mut blocks = Vec::new();
         blocks.push(::block::Block::new_genesis_block());
-        BlockChain {
-            blocks: blocks,
-        }
+        BlockChain { blocks: RefCell::new(blocks) }
     }
 
-    fn add(&mut self, data: String) {
-        let bs = self.blocks.as_mut();
-//        if let Some(prev_block) = bs.last() {
-//            bs.push(::block::Block::new_genesis_block());
-//        }
-//        {
-//            let prev_block: &Block = bs.last().unwrap();
-//            let prev_hash = prev_block.hash.clone();
-//            let new_block = Block::new(data, prev_hash);
-//        }
-        //bs.push(new_block);
+    fn add(&self, data: String) {
+        let mut new_block = Block::new_genesis_block();
+        {
+            let bs = self.blocks.borrow();
+            let prev_block = bs.last().unwrap();
+            let prev_hash = prev_block.hash.clone();
+            new_block = Block::new(data, prev_hash);
+        }
+        {
+            let mut bs = self.blocks.borrow_mut();
+            bs.push(new_block);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::{self, Write};
     #[test]
     fn it_works() {}
 
@@ -84,8 +97,20 @@ mod tests {
         let mut block_chain = ::block::BlockChain::new();
         block_chain.add("Send 1 BTC to Ivan".to_string());
         block_chain.add("Send 2 more BTC to Ivan".to_string());
-        for block in &block_chain.blocks {
-            println!("{:?}", block);
+        let blocks = block_chain.blocks.get_mut();
+        for block in blocks {
+            let timestamp = &block.timestamp;
+            let hash = &block.hash;
+            let data = &block.data;
+            let prev_block_hash = &block.prev_block_hash;
+            writeln!(
+                io::stdout(),
+                "timestamp: {:?}, hash:{}, prev_hash:{:?}, data: {:?}",
+                timestamp,
+                String::from_utf8_lossy(hash).to_string(),
+                prev_block_hash,
+                data
+            );
         }
     }
 }
