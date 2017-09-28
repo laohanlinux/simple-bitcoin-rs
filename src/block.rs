@@ -1,3 +1,6 @@
+extern crate tempdir;
+extern crate leveldb;
+
 extern crate serde;
 extern crate serde_json;
 
@@ -8,6 +11,11 @@ use std::io::Write;
 use std::cell::RefCell;
 
 use sha2::{Sha256, Digest};
+
+use tempdir::TempDir;
+use leveldb::database::Database;
+use leveldb::kv::KV;
+use leveldb::options::{Options, WriteOptions, ReadOptions};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Block {
