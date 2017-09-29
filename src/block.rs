@@ -10,12 +10,15 @@ extern crate time;
 use std::io::Write;
 use std::cell::RefCell;
 
-use sha2::{Sha256, Digest};
+use self::sha2::{Sha256, Digest};
+use self::tempdir::TempDir;
+use self::leveldb::database::Database;
+use self::leveldb::kv::KV;
+use self::leveldb::options::{Options, WriteOptions, ReadOptions};
 
-use tempdir::TempDir;
-use leveldb::database::Database;
-use leveldb::kv::KV;
-use leveldb::options::{Options, WriteOptions, ReadOptions};
+const DBFILE: &str = "blockchain.db";
+const BLOCK_PREFIX: &str = "blocks";
+const GENESIS_COINBASE_DATA: &str = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Block {
