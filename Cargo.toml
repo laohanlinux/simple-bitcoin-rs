@@ -6,9 +6,10 @@ authors = ["Rg <zhenghuarong@kibey.com>"]
 [dependencies]
 sha2 = "0.6.0"
 time = "0.1"
-leveldb = "0.8"
+leveldb-rs = "0.0.7"
 tempdir = "*"
 secp256k1 = "0.7.1"
+
 
 serde = "1.0"
 serde_derive = "1.0"

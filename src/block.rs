@@ -1,6 +1,3 @@
-extern crate tempdir;
-extern crate leveldb;
-
 extern crate serde;
 extern crate serde_json;
 
@@ -11,10 +8,6 @@ use std::io::Write;
 use std::cell::RefCell;
 
 use self::sha2::{Sha256, Digest};
-use self::tempdir::TempDir;
-use self::leveldb::database::Database;
-use self::leveldb::kv::KV;
-use self::leveldb::options::{Options, WriteOptions, ReadOptions};
 
 const DBFILE: &str = "blockchain.db";
 const BLOCK_PREFIX: &str = "blocks";
