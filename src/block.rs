@@ -1,5 +1,6 @@
 extern crate serde;
 extern crate serde_json;
+extern crate hex;
 
 extern crate sha2;
 extern crate time;
@@ -39,7 +40,7 @@ impl Block {
     }
 
     pub fn deserialize_block(data: &Vec<u8>) -> Self {
-        serde_json::from_str(&String::from_utf8_lossy(data)).unwrap()
+        serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
     }
 
     fn new_genesis_block() -> Self {
@@ -92,7 +93,9 @@ impl BlockChain {
 
 #[cfg(test)]
 mod tests {
+    extern crate hex;
     use std::io::{self, Write};
+
     #[test]
     fn it_works() {}
 
@@ -111,8 +114,8 @@ mod tests {
                 io::stdout(),
                 "timestamp: {:?}, hash:{}, prev_hash:{:?}, data: {:?}",
                 timestamp,
-                String::from_utf8_lossy(hash).to_string(),
-                prev_block_hash,
+                hex::encode(hash),
+                hex::encode(prev_block_hash),
                 data
             );
         }

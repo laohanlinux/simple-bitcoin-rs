@@ -37,14 +37,16 @@ impl DBStore {
         db.put(&dec_key, value).unwrap();
     }
 
-    pub fn get_all_with_prefix(&self, prefix: &str) -> Vec<(Vec<u8>, Vec<u8>)>{
+    pub fn get_all_with_prefix(&self, prefix: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
         let db_clone = self.db.clone();
         let mut db = db_clone.lock().unwrap();
         let kvs: Vec<(Vec<u8>, Vec<u8>)> = db.iter().unwrap().alloc().collect();
-        kvs.into_iter().filter(|ref tuple| {
-            let k = &String::from_utf8(tuple.0.to_vec()).unwrap();
-            k.starts_with(prefix)
-        }).collect()
+        kvs.into_iter()
+            .filter(|ref tuple| {
+                let k = &String::from_utf8(tuple.0.to_vec()).unwrap();
+                k.starts_with(prefix)
+            })
+            .collect()
     }
 }
 
@@ -66,6 +68,10 @@ mod tests {
         let db = super::DBStore::new(&path.path());
         db.put_with_prefix(b"hello", b"word", "L");
         let value = db.get_with_prefix(b"hello", "L").unwrap();
-        writeln!(io::stdout(), "value => {:?}",String::from_utf8(value).unwrap());
+        writeln!(
+            io::stdout(),
+            "value => {:?}",
+            String::from_utf8(value).unwrap()
+        );
     }
 }
