@@ -1,6 +1,5 @@
 extern crate secp256k1;
 
-
 use std::sync::{Arc, Mutex};
 
 use self::secp256k1::*;

@@ -1,7 +1,7 @@
 [package]
 name = "simple-bitcoin-rs"
 version = "0.1.0"
-authors = ["Rg <zhenghuarong@kibey.com>"]
+authors = ["Rg <daimaldd@gmail.com>"]
 
 [dependencies]
 sha2 = "0.6.0"
@@ -10,7 +10,9 @@ leveldb-rs = "0.0.7"
 tempdir = "*"
 secp256k1 = "0.7.1"
 hex = { git = "https://github.com/KokaKiwi/rust-hex.git"}
-fastcmp = "1.0.1"
+compare = "*"
+rust-base58 = "0.0.4"
+bigint = "4"
 
 serde = "1.0"
 serde_derive = "1.0"

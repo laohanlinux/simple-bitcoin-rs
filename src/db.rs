@@ -26,7 +26,10 @@ impl DBStore {
         let db = db_clone.lock().unwrap();
         match db.get(&dec_key) {
             Ok(v) => v,
-            Err(e) => None,
+            Err(e) => {
+                let str = format!("{:?}", e);
+                panic!(str)
+            },
         }
     }
 
