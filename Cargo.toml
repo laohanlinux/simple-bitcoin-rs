@@ -12,12 +12,11 @@ secp256k1 = "0.7.1"
 hex = { git = "https://github.com/KokaKiwi/rust-hex.git"}
 compare = "*"
 rust-base58 = "0.0.4"
-bigint = "4"
+bigint = "4.2.0"
+elliptic = {git = "https://github.com/limeburst/elliptic.git"}
 
 serde = "1.0"
 serde_derive = "1.0"
-
-# serde_json is just for the example, not required in general
 serde_json = "1.0"
 
 [[bin]]
