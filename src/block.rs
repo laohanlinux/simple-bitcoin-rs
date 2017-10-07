@@ -9,6 +9,7 @@ use std::io::Write;
 use std::cell::RefCell;
 
 use self::sha2::{Sha256, Digest};
+use super::util;
 
 const DBFILE: &str = "blockchain.db";
 const BLOCK_PREFIX: &str = "blocks";

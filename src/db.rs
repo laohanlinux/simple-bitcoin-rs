@@ -21,7 +21,7 @@ impl DBStore {
     }
 
     pub fn get_with_prefix(&self, key: &[u8], prefix: &str) -> Option<Vec<u8>> {
-        let mut dec_key = dec_key(key, prefix);
+        let dec_key = dec_key(key, prefix);
         let db_clone = self.db.clone();
         let db = db_clone.lock().unwrap();
         match db.get(&dec_key) {
@@ -29,12 +29,12 @@ impl DBStore {
             Err(e) => {
                 let str = format!("{:?}", e);
                 panic!(str)
-            },
+            }
         }
     }
 
     pub fn put_with_prefix(&self, key: &[u8], value: &[u8], prefix: &str) {
-        let mut dec_key = dec_key(key, prefix);
+        let dec_key = dec_key(key, prefix);
         let db_clone = self.db.clone();
         let mut db = db_clone.lock().unwrap();
         db.put(&dec_key, value).unwrap();

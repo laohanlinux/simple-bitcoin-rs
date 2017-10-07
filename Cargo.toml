@@ -10,10 +10,12 @@ leveldb-rs = "0.0.7"
 tempdir = "*"
 secp256k1 = "0.7.1"
 hex = { git = "https://github.com/KokaKiwi/rust-hex.git"}
+util_rs = {git = "https://github.com/laohanlinux/util-rs.git"}
 compare = "*"
 rust-base58 = "0.0.4"
 bigint = "4.2.0"
 elliptic = {git = "https://github.com/limeburst/elliptic.git"}
+rand = "*"
 
 serde = "1.0"
 serde_derive = "1.0"
