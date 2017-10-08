@@ -28,9 +28,15 @@ impl Wallet {
         }
     }
 
+    pub fn new_key_pair() -> (SecretKey, Vec<u8>) {
+        let (secret_key, public_key) = util::new_key_pair();
+        (secret_key, util::public_key_to_vec(&public_key, false))
+    }
+
+    // get bitcoin address
     pub fn get_addrees(&self) -> String {
         // rimpemd160 20bytes
-        let mut public_key = Self::hash_pubkey(&self.public_key[..]);
+        let mut public_key = Self::hash_pubkey(&util::public_key_to_vec(&self.public_key, false));
         let mut version_payload = vec![version];
         // 0x1|rimpemd160
         util::vec_stack_push(&mut public_key, 1);
@@ -46,6 +52,29 @@ impl Wallet {
 
         // base58
         util::encode_base58(&full_payload)
+    }
+
+    pub fn validate_address(address: String) -> bool {
+        let base58_decode: Vec<u8> = util::base58_decode(address);
+        if base58_decode.len() != 22 {
+            return false;
+        }
+
+        let public_key = base58_decode.to_slice();
+        let target_checksum = util::checksum_address(public_key[..(public_key.len() - address_checksum_len)]);
+        let actual_checksum = public_key[(public_key.len() - address_checksum_len)..];
+        // 1. check address sum
+        if util::compare_slice_u8(&target_checksum, &actual_checksum) == false {
+            return false;
+        }
+
+        let version_slice = public_key[..1];
+        // 2. check version
+        if util::compare_slice_u8(version_slice, &vec![version]) == false {
+            return false 
+        }
+
+        true
     }
 
     // 1. sha256  2. ripmed160

@@ -4,6 +4,8 @@ extern crate sha2;
 extern crate crypto;
 extern crate crc;
 extern crate rust_base58;
+extern crate compare;
+extern crate rand;
 
 use self::sha2::{Sha256, Digest as Sha256Digest};
 use super::transaction;
@@ -13,9 +15,16 @@ use self::crypto::ripemd160;
 use self::crypto::digest::Digest as Ripemd160Digest;
 use self::crc::{crc32, Hasher32};
 use self::rust_base58::{ToBase58, FromBase58};
+use self::compare::Compare;
+use self::rand::{Rng, thread_rng};
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+
+pub fn compare_slice_u8(s1: &[u8], s2: &[u8]) -> bool {
+    let cmp = |l: &Vec<u8>, r: &Vec<u8>| l.len().cmp(&r.len());
+    cmp.compare(s1, s2) == Greater
+}
 
 pub fn encode_base58(payload: &[u8]) -> String {
     payload.to_base58()
@@ -61,6 +70,14 @@ pub fn double_sha256(input_str: String) -> Vec<u8> {
     sha256(&next)
 }
 
+#[inline]
+pub fn public_key_to_vec(pub_key: &PublicKey, compressed: bool) -> Vec<u8> {
+    let full = Secp256k1::with_caps(ContextFlag::Full);
+    let array_vec = pub_key.serialize_vec(&full, compressed);
+    array_vec.to_vec()
+}
+
+#[inline]
 pub fn packet_sign_content(tx: &transaction::Transaction) -> String {
     format!("{:?}", tx)
 }
@@ -70,6 +87,10 @@ pub fn recover_secret_key(origin_secret_key: &[u8]) -> SecretKey {
     SecretKey::from_slice(&s, origin_secret_key).unwrap()
 }
 
+pub fn new_key_pair() -> (SecretKey, PublicKey) {
+    let full = SecretKey::with_caps(ContextFlag::Full);
+    full.generate_keypair(&mut thread_rng()).unwrap()
+}
 // return signature der string
 pub fn sign(msg: &Message, secret_key: &SecretKey) -> Vec<u8> {
     let full = Secp256k1::with_caps(ContextFlag::Full);

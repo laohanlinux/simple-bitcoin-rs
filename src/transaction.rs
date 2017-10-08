@@ -167,6 +167,7 @@ impl Transaction {
         }
     }
 
+    #[inline]
     // Verify verifies signatures of Transaction inputs
     // tx_input = |txid|vout|sig|pkey| ==> |txid = 0| vout| sig = "" | pkey = reference pkey|
     // ==> sign(vout, pkey)
