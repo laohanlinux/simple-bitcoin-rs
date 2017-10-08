@@ -1,14 +1,29 @@
 extern crate hex;
 extern crate secp256k1;
 extern crate sha2;
+extern crate crypto;
+extern crate crc;
+extern crate rust_base58;
 
-use self::sha2::{Sha256, Digest};
+use self::sha2::{Sha256, Digest as Sha256Digest};
 use super::transaction;
 use self::secp256k1::{Signature, Secp256k1, Message, ContextFlag};
 use self::secp256k1::key::{SecretKey, PublicKey};
+use self::crypto::ripemd160;
+use self::crypto::digest::Digest as Ripemd160Digest;
+use self::crc::{crc32, Hasher32};
+use self::rust_base58::{ToBase58, FromBase58};
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+
+pub fn encode_base58(payload: &[u8]) -> String {
+    payload.to_base58()
+}
+
+pub fn decode_base58(payload: String) -> Vec<u8> {
+    payload.from_base58().unwrap()
+}
 
 pub fn encode_hex<T: AsRef<[u8]>>(data: T) -> String {
     hex::encode(data)
@@ -16,6 +31,29 @@ pub fn encode_hex<T: AsRef<[u8]>>(data: T) -> String {
 
 pub fn decode_hex<T: AsRef<[u8]>>(data: T) -> Vec<u8> {
     hex::decode(data).unwrap()
+}
+
+pub fn encode_ripemd160(text: &[u8]) -> Vec<u8> {
+    let mut sh = ripemd160::Ripemd160::new();
+    let mut out = [0u8; 20];
+    sh.input(text);
+    sh.result(&mut out);
+    out.to_vec()
+}
+
+pub fn vec_stack_push(v: &mut Vec<u8>, elem: u8) {
+    v.reverse();
+    v.push(elem);
+    v.reverse();
+}
+
+pub fn crc32(text: &[u8]) -> u32 {
+    crc32::checksum_ieee(text)
+}
+
+pub fn checksum_address(payload: &[u8]) -> Vec<u8> {
+    let next = sha256(payload);
+    sha256(&next)
 }
 
 pub fn double_sha256(input_str: String) -> Vec<u8> {
@@ -51,7 +89,7 @@ pub fn verify(pub_key: &[u8], sig_str: &[u8], origin_data_to_sign: String) -> bo
     ).is_ok()
 }
 
-fn sha256(input: &[u8]) -> Vec<u8> {
+pub fn sha256(input: &[u8]) -> Vec<u8> {
     let mut hasher = Sha256::default();
     hasher.input(input);
     hasher.result().to_vec()

@@ -12,11 +12,11 @@ secp256k1 = "0.7.1"
 hex = { git = "https://github.com/KokaKiwi/rust-hex.git"}
 util_rs = {git = "https://github.com/laohanlinux/util-rs.git"}
 compare = "*"
-rust-base58 = "0.0.4"
+rust-base58 = "*"
 bigint = "4.2.0"
-elliptic = {git = "https://github.com/limeburst/elliptic.git"}
 rand = "*"
-
+rust-crypto = "^0.2"
+crc = "^1.0.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"

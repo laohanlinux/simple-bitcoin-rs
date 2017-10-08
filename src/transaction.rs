@@ -4,7 +4,6 @@ extern crate serde;
 extern crate serde_json;
 extern crate sha2;
 extern crate hex;
-extern crate elliptic;
 extern crate bigint;
 extern crate secp256k1;
 extern crate rand;
@@ -12,7 +11,6 @@ extern crate rand;
 use self::sha2::{Sha256, Digest};
 use self::compare::Compare;
 use self::rust_base58::{ToBase58, FromBase58};
-use self::elliptic::curve25519;
 use self::bigint::U256;
 use self::secp256k1::{Message, ContextFlag};
 use self::secp256k1::key::{SecretKey, PublicKey};
@@ -53,6 +51,13 @@ impl Transaction {
         let hash = tx.hash();
         tx.id = hash;
         tx
+    }
+
+    // TODO add
+
+
+    pub fn deserialize_transaction(data: &Vec<u8>) -> Transaction {
+        serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
     }
 
     pub fn serialize(&self) -> Vec<u8> {
