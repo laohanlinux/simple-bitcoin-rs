@@ -9,6 +9,7 @@ extern crate lazy_static;
 
 mod error;
 mod block;
+mod blockchain;
 mod utxo_set;
 mod wallet;
 mod wallets;

@@ -1,8 +1,8 @@
 use super::util;
 
 #[derive(Debug, Clone)]
-struct MerkleTree {
-    root: Option<Box<MerkleNode>>,
+pub struct MerkleTree {
+    pub root: Option<Box<MerkleNode>>,
 }
 
 #[derive(Debug, Clone)]
