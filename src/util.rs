@@ -6,9 +6,11 @@ extern crate crc;
 extern crate rust_base58;
 extern crate compare;
 extern crate rand;
+extern crate quick_error;
 
-use self::sha2::{Sha256, Digest as Sha256Digest};
 use super::transaction;
+use super::error::Error;
+use self::sha2::{Sha256, Digest as Sha256Digest};
 use self::secp256k1::{Signature, Secp256k1, Message, ContextFlag};
 use self::secp256k1::key::{SecretKey, PublicKey};
 use self::crypto::ripemd160;
@@ -17,12 +19,39 @@ use self::crc::{crc32, Hasher32};
 use self::rust_base58::{ToBase58, FromBase58};
 use self::compare::Compare;
 use self::rand::{Rng, thread_rng};
+use self::quick_error::ResultExt;
 
+use std::fs::{File, OpenOptions};
+use std::path::{Path, PathBuf};
+use std::io::BufReader;
+use std::io::prelude::*;
+use std::cmp::Ordering::{Less, Greater};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
+pub fn read_file(path: &str) -> Result<Vec<u8>, Error> {
+    let path = Path::new(path);
+    let file = File::open(path).context(path)?;
+    let mut buf_reader = BufReader::new(file);
+    let mut buf = vec![];
+    buf_reader.read_to_end(&mut buf).context(path)?;
+    Ok(buf)
+}
+
+pub fn write_file(path: &str, contents: &[u8]) -> Result<(), Error> {
+    let path = Path::new(path);
+    let mut f = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(path)
+        .context(path)?;
+    f.write_all(contents).context(path)?;
+    f.sync_all().context(path)?;
+    Ok(())
+}
+
 pub fn compare_slice_u8(s1: &[u8], s2: &[u8]) -> bool {
-    let cmp = |l: &Vec<u8>, r: &Vec<u8>| l.len().cmp(&r.len());
+    let cmp = |l: &[u8], r: &[u8]| l.len().cmp(&r.len());
     cmp.compare(s1, s2) == Greater
 }
 
@@ -83,12 +112,12 @@ pub fn packet_sign_content(tx: &transaction::Transaction) -> String {
 }
 
 pub fn recover_secret_key(origin_secret_key: &[u8]) -> SecretKey {
-    let s = Secp256k1::new();
+    let s = Secp256k1::with_caps(ContextFlag::Full);
     SecretKey::from_slice(&s, origin_secret_key).unwrap()
 }
 
 pub fn new_key_pair() -> (SecretKey, PublicKey) {
-    let full = SecretKey::with_caps(ContextFlag::Full);
+    let full = Secp256k1::new();
     full.generate_keypair(&mut thread_rng()).unwrap()
 }
 // return signature der string

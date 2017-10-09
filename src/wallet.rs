@@ -1,6 +1,9 @@
 extern crate secp256k1;
 extern crate rand;
 extern crate sha2;
+extern crate serde;
+extern crate serde_json;
+extern crate hex;
 
 use self::secp256k1::{Message, ContextFlag};
 use self::secp256k1::key::{SecretKey, PublicKey};
@@ -10,9 +13,10 @@ use self::sha2::{Sha256, Digest};
 use super::util;
 use std::sync::{Arc, Mutex};
 
-const version: u8 = 0u8;
-const address_checksum_len: usize = 4;
+const VERSION: u8 = 0u8;
+const ADDRESS_CHECKSUM_LEN: usize = 4;
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Wallet {
     secret_key: SecretKey,
     public_key: PublicKey,
@@ -37,10 +41,10 @@ impl Wallet {
     pub fn get_addrees(&self) -> String {
         // rimpemd160 20bytes
         let mut public_key = Self::hash_pubkey(&util::public_key_to_vec(&self.public_key, false));
-        let mut version_payload = vec![version];
+        let mut version_payload = vec![VERSION];
         // 0x1|rimpemd160
         util::vec_stack_push(&mut public_key, 1);
-        let mut address_sum = util::checksum_address(&public_key).split_off(address_checksum_len);
+        let mut address_sum = util::checksum_address(&public_key).split_off(ADDRESS_CHECKSUM_LEN);
 
         // packet base58 payload
         let mut full_payload = Vec::new();
@@ -55,23 +59,23 @@ impl Wallet {
     }
 
     pub fn validate_address(address: String) -> bool {
-        let base58_decode: Vec<u8> = util::base58_decode(address);
-        if base58_decode.len() != 22 {
-            return false;
-        }
-
-        let public_key = base58_decode.to_slice();
-        let target_checksum = util::checksum_address(public_key[..(public_key.len() - address_checksum_len)]);
-        let actual_checksum = public_key[(public_key.len() - address_checksum_len)..];
+        let base58_decode: Vec<u8> = util::decode_base58(address);
+        let public_key = base58_decode.as_slice();
+        let target_checksum = {
+            let (start, end) = (0, public_key.len() - ADDRESS_CHECKSUM_LEN);
+            let checked_text = &public_key[start..end];
+            util::checksum_address(checked_text)
+        };
+        let actual_checksum = &public_key[(public_key.len() - ADDRESS_CHECKSUM_LEN)..];
         // 1. check address sum
         if util::compare_slice_u8(&target_checksum, &actual_checksum) == false {
             return false;
         }
 
-        let version_slice = public_key[..1];
+        let version_slice = &public_key[..1];
         // 2. check version
-        if util::compare_slice_u8(version_slice, &vec![version]) == false {
-            return false 
+        if util::compare_slice_u8(version_slice, &vec![VERSION]) == false {
+            return false;
         }
 
         true

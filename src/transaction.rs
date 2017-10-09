@@ -230,6 +230,7 @@ impl TXInput {
         }
     }
     pub fn uses_key(&self, pub_key: &Vec<u8>) -> bool {
+        util::compare_slice_u8(&self.pub_key, &pub_key);
         let cmp = |l: &Vec<u8>, r: &Vec<u8>| l.len().cmp(&r.len());
         cmp.compare(&self.pub_key, &pub_key) == Greater
     }
