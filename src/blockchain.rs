@@ -4,13 +4,15 @@ use self::leveldb_rs::*;
 
 use super::block::*;
 use super::transaction::*;
+use super::utxo_set::UTXOSet;
 use super::db::DBStore;
+use super::util;
 
 use std::io::Write;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 lazy_static!{
-//    static ref MAX_NONCE: U256 = 10.into();
     static ref LAST_BLOCK_HASH_KEY:&'static [u8]  = b"".as_ref();
     static ref LAST_BLOCK_HASH_PREFIX:&'static str = "l-";
     static ref BLOCK_PREFIX:&'static str  = "blocks";
@@ -70,7 +72,7 @@ impl BlockChain {
         }
 
         let block_data = Block::serialize(&block);
-        self.db.get_mut().put_with_prefix(
+        self.db.borrow().put_with_prefix(
             &block.hash,
             &block_data,
             *BLOCK_PREFIX,
@@ -89,5 +91,39 @@ impl BlockChain {
             );
             self.tip = block.hash.clone();
         }
+    }
+
+    // TODO optizme it
+    pub fn find_transaction(&self, id: &[u8]) -> Option<Transaction> {
+        let db = self.db.borrow();
+        let result = db.get_all_with_prefix(*BLOCK_PREFIX);
+        if result.len() == 0 {
+            return None;
+        }
+        for kv in &result {
+            if util::compare_slice_u8(&kv.0, id) {
+                return Some(Transaction::deserialize_transaction(&kv.1));
+            }
+        }
+        None
+    }
+
+    // FindUTXO finds all unspent transaction outputs and returns transactions with spent outputs removed
+    pub fn find_utxo(&self) -> Option<HashMap<String, TXOutput>>{
+        let mut utxo = HashMap::new();
+        let mut spent_txos = HashMap::new();
+        let result = self.db.borrow().get_all_with_prefix(*BLOCK_PREFIX);
+
+        for kv in &result {
+            let txid = util::encode_hex(&kv.0);
+            // decode transaction
+            let transaction = Transaction::deserialize_transaction(&kv.1);
+            for vout in &transaction.vout {
+//                if spent_txos.get()
+            }
+
+        }
+
+        None
     }
 }

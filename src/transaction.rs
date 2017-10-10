@@ -25,9 +25,9 @@ const SUBSIDY: isize = 10;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Transaction {
-    id: Vec<u8>,
-    vin: Vec<TXInput>,
-    vout: Vec<TXOutput>,
+    pub id: Vec<u8>,
+    pub vin: Vec<TXInput>,
+    pub vout: Vec<TXOutput>,
 }
 
 impl Transaction {
