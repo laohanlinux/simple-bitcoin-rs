@@ -10,9 +10,10 @@ use super::util;
 
 use std::io::Write;
 use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
-lazy_static!{
+lazy_static! {
     static ref LAST_BLOCK_HASH_KEY:&'static [u8]  = b"".as_ref();
     static ref LAST_BLOCK_HASH_PREFIX:&'static str = "l-";
     static ref BLOCK_PREFIX:&'static str  = "blocks";
@@ -109,21 +110,73 @@ impl BlockChain {
     }
 
     // FindUTXO finds all unspent transaction outputs and returns transactions with spent outputs removed
-    pub fn find_utxo(&self) -> Option<HashMap<String, TXOutput>>{
-        let mut utxo = HashMap::new();
-        let mut spent_txos = HashMap::new();
+    pub fn find_utxo(&self) -> Option<HashMap<String, TXOutput>> {
+//        let mut utxo = HashMap::new();
+        let mut spent_txos: HashMap<String, Vec<_>> = HashMap::new();
         let result = self.db.borrow().get_all_with_prefix(*BLOCK_PREFIX);
+        let block_iter = self.iter();
+        for block in block_iter {
+            for transaction in &block.transactions {
+                let txid = util::encode_hex(&transaction.id);
+//
+//                for vout in &transaction.vout {
+//                    let txos = spent_txos.get(&txid);
+//                    let vout_value = vout.value;
+//                    txos.map(|v|{
+//                        for vout_idex in v {
+//                            if vout_idex == vout_value {
+//                                return v;
+//                            }
+//                        }
+//                        v
+//                    });
+//                }
 
-        for kv in &result {
-            let txid = util::encode_hex(&kv.0);
-            // decode transaction
-            let transaction = Transaction::deserialize_transaction(&kv.1);
-            for vout in &transaction.vout {
-//                if spent_txos.get()
+                if !transaction.is_coinbase() {
+                    for input in &transaction.vin {
+                        let in_txid = util::encode_hex(&input.txid);
+                        let new_value = {
+                            let value = spent_txos.get_mut(&in_txid);
+                            value.map_or(vec![input.vout], |v| { v.push(input.vout); vec![]})
+                        };
+                        spent_txos.insert(in_txid, new_value);
+                    }
+                }
             }
-
         }
-
         None
+    }
+
+    pub fn iter(&self) -> IterBlockchain {
+        let current_hash = &self.tip;
+        let current_block_data = self.db.borrow().get_with_prefix(current_hash, *BLOCK_PREFIX).unwrap();
+        let current_block = Block::deserialize_block(&current_block_data);
+        let db = self.db.borrow().clone();
+        IterBlockchain::new(db, current_block)
+    }
+}
+
+struct IterBlockchain {
+    next: Option<Block>,
+    db: DBStore,
+}
+
+impl IterBlockchain {
+    pub fn new(db: DBStore, next: Block) -> IterBlockchain {
+        IterBlockchain { db: db, next: Some(next) }
+    }
+}
+
+impl Iterator for IterBlockchain {
+    type Item = Block;
+    fn next(&mut self) -> Option<Self::Item> {
+        let current_block = self.next.take().unwrap();
+        let prev_block_data = self.db.get_with_prefix(&current_block.prev_block_hash, *BLOCK_PREFIX);
+        if prev_block_data.is_some() {
+            let prev_block_data = prev_block_data.unwrap();
+            let prev_block = Block::deserialize_block(&prev_block_data);
+            self.next = Some(prev_block);
+        }
+        self.next.clone()
     }
 }

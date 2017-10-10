@@ -211,13 +211,13 @@ impl Transaction {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TXInput {
     // transaction id of prev output reference
-    txid: Vec<u8>,
+    pub txid: Vec<u8>,
     // index of prev output reference
-    vout: isize,
+    pub vout: isize,
     // signature
     signature: Vec<u8>,
     // public key
-    pub_key: Vec<u8>,
+    pub pub_key: Vec<u8>,
 }
 
 impl TXInput {

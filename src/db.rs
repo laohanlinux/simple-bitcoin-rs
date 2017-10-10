@@ -28,8 +28,9 @@ In chainstate, the key -> value pairs are:
 
  * **/
 
+#[derive(Clone)]
 pub struct DBStore {
-    db: Arc<Mutex<DB>>,
+    pub db: Arc<Mutex<DB>>,
 }
 
 impl DBStore {

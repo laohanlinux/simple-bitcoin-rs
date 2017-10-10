@@ -2,6 +2,6 @@ use std::cell::RefCell;
 
 use super::blockchain::BlockChain;
 
-struct UTXOSet {
-    blockchain: RefCell<BlockChain>,
+pub struct UTXOSet {
+    pub blockchain: RefCell<BlockChain>,
 }
