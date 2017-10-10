@@ -7,16 +7,34 @@ use self::tempdir::TempDir;
 use std::sync::{Arc, Mutex};
 use std::path::Path;
 
-const BLOCK_PREFIX: &str = "b-";
-const UTXO_PREFIX: &str = "l-";
+/*
+ *In blocks, the key -> value pairs are:
+
+'b' + 32-byte block hash -> block index record
+'f' + 4-byte file number -> file information record
+'l' -> 4-byte file number: the last block file number used
+'R' -> 1-byte boolean: whether we're in the process of reindexing
+'F' + 1-byte flag name length + flag name string -> 1 byte boolean: various flags that can be on or off
+'t' + 32-byte transaction hash -> transaction index record
+In chainstate, the key -> value pairs are:
+
+'c' + 32-byte transaction hash -> unspent transaction output record for that transaction
+'B' -> 32-byte block hash: the block hash up to which the database represents the unspent transaction outputs
+ *
+ *
+ *
+ * 32-byte block-hash -> Block structure (serialized)
+'l' -> the hash of the last block in a chain
+
+ * **/
 
 pub struct DBStore {
     db: Arc<Mutex<DB>>,
 }
 
 impl DBStore {
-    pub fn new(path: &Path) -> Self {
-        let db = DB::create(path).unwrap();
+    pub fn new(path: &str, db_opt: DBOptions) -> Self {
+        let db = DB::open_with_opts(Path::new(path), db_opt).unwrap();
         DBStore { db: Arc::new(Mutex::new(db)) }
     }
 

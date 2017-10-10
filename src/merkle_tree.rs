@@ -6,8 +6,8 @@ pub struct MerkleTree {
 }
 
 #[derive(Debug, Clone)]
-struct MerkleNode {
-    data: Box<Vec<u8>>,
+pub struct MerkleNode {
+    pub data: Box<Vec<u8>>,
     left: Option<Box<MerkleNode>>,
     right: Option<Box<MerkleNode>>,
 }

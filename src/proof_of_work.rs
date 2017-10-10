@@ -11,12 +11,12 @@ lazy_static!{
 
 const TARGETBITS: usize = 16;
 
-pub struct ProofOfWork<'a>{
+pub struct ProofOfWork<'a> {
     pub block: &'a Block,
     target: U256,
 }
 
-impl <'a> ProofOfWork<'a> {
+impl<'a> ProofOfWork<'a> {
     pub fn new_proof_of_work(b: &'a Block) -> ProofOfWork<'a> {
         let target: U256 = 1.into();
         // left move 240 bits
@@ -34,7 +34,7 @@ impl <'a> ProofOfWork<'a> {
 
     // TODO
     pub fn prepare_data(&self, nonce: isize) -> Vec<u8> {
-//        let data = Vec
+        //        let data = Vec
         vec![]
     }
 }

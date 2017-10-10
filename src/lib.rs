@@ -7,6 +7,9 @@ extern crate quick_error;
 #[macro_use]
 extern crate lazy_static;
 
+#[macro_use]
+extern crate runtime_fmt;
+
 mod error;
 mod block;
 mod blockchain;

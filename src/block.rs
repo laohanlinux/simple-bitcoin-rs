@@ -11,15 +11,17 @@ use super::proof_of_work;
 use super::transaction::*;
 use super::merkle_tree::MerkleTree;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Block {
-    timestamp: i64,
-    prev_block_hash: Vec<u8>,
-    hash: Vec<u8>,
+use std::io::Write;
 
-    transactions: Vec<Transaction>,
-    nonce: isize,
-    height: isize,
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct Block {
+    pub timestamp: i64,
+    pub prev_block_hash: Vec<u8>,
+    pub hash: Vec<u8>,
+
+    pub transactions: Vec<Transaction>,
+    pub nonce: isize,
+    pub height: isize,
 }
 
 impl Block {
@@ -35,9 +37,12 @@ impl Block {
         let mut pow = proof_of_work::ProofOfWork::new_proof_of_work(&block);
 
         let (nonce, hash) = pow.run();
-        pow.block.hash = hash;
-        pow.block.nonce = nonce;
-        block
+        return {
+            let mut block = pow.block.clone();
+            block.hash = hash;
+            block.nonce = nonce;
+            block
+        };
     }
 
     pub fn serialize(block: &Block) -> Vec<u8> {
@@ -48,26 +53,10 @@ impl Block {
         serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
     }
 
-    fn new_genesis_block(coinbase: Transaction) -> Self {
+    pub fn new_genesis_block(coinbase: Transaction) -> Self {
         let mut block: Block = Default::default();
-        block.transactions = coinbase;
+        block.transactions = vec![coinbase];
         block
-    }
-
-    // hash(prev_block_hash|data|timestamp)
-    fn set_hash(&mut self) {
-        let mut timestamp_buf = Vec::new();
-        write!(&mut timestamp_buf, "{}", self.timestamp).unwrap();
-
-        let mut header = Vec::new();
-        header.append(&mut self.prev_block_hash.clone());
-        header.append(&mut self.data.clone());
-        header.append(&mut timestamp_buf);
-
-        let mut hasher = Sha256::default();
-        hasher.input(&header);
-
-        self.hash = hasher.result().to_vec();
     }
 
     pub fn hash_transactions(&self) -> Vec<u8> {
@@ -77,7 +66,7 @@ impl Block {
         }
 
         let merkle_tree: MerkleTree = MerkleTree::new_merkle_tree(transaction);
-        *merkle_tree.root.unwrap()
+        *merkle_tree.root.unwrap().data
     }
 }
 
