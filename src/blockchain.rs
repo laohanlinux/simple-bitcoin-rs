@@ -27,7 +27,7 @@ const DBFILE: &str = "blockchain_{:?}.db";
 //#[derive]
 pub struct BlockChain {
     tip: Vec<u8>,
-    db: RefCell<DBStore>,
+    pub db: RefCell<DBStore>,
 }
 
 impl BlockChain {
@@ -123,23 +123,28 @@ impl BlockChain {
 
     // FindUTXO finds all unspent transaction outputs and returns transactions with spent outputs removed
     pub fn find_utxo(&self) -> Option<HashMap<String, TXOutputs>> {
+        // utxo 未花费
         let mut utxo: HashMap<String, TXOutputs> = HashMap::new();
+        // 已花费，对应于输入，也就是说如果“输出”能找到一个“输入”引用它，那么它就是被消费了，
+        // 从最新的区块开始往前找，每找到一个区块，则将这些区块的输入放到spend_txos中，
+        // 如果某个“输出”在spend_txos中找到一个引用它的“输入”，则表示该输入被消费了
         let mut spent_txos: HashMap<String, Vec<isize>> = HashMap::new();
         let result = self.db.borrow().get_all_with_prefix(*BLOCK_PREFIX);
         let block_iter = self.iter();
         for block in block_iter {
             for transaction in &block.transactions {
                 let txid = &util::encode_hex(&transaction.id);
-
+                let mut out_idx = 0;
                 for vout in &transaction.vout {
                     let txos = spent_txos.get(txid);
                     let mut find = false;
                     if txos.is_none() {
+                        out_idx += 1;
                         continue;
                     }
                     // Was the output spent
                     for vout_idx in txos.unwrap() {
-                        if vout.value == *vout_idx {
+                        if out_idx == *vout_idx {
                             find = true;
                             break;
                         }
@@ -154,8 +159,10 @@ impl BlockChain {
                         }
                         utxo.insert(txid.clone(), TXOutputs { outputs: Box::new(tmp_value) });
                     }
+                    out_idx += 1;
                 }
 
+                // TODO may be has error issue
                 if !transaction.is_coinbase() {
                     for input in &transaction.vin {
                         let in_txid = util::encode_hex(&input.txid);
@@ -163,7 +170,7 @@ impl BlockChain {
                             let value = spent_txos.get_mut(&in_txid);
                             value.map_or(vec![input.vout], |v| {
                                 v.push(input.vout);
-                                vec![]
+                                v.to_vec()
                             })
                         };
                         spent_txos.insert(in_txid, new_value);
@@ -235,7 +242,7 @@ impl BlockChain {
         new_block
     }
 
-    pub fn iter(&self) -> IterBlockchain {
+    fn iter(&self) -> IterBlockchain {
         let current_hash = &self.tip;
         let current_block_data = self.db
             .borrow()

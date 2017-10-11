@@ -239,6 +239,7 @@ impl TXInput {
 // TODO add signature script instead of pub_key_hash
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TXOutput {
+    // value is the output's source counts
     pub value: isize,
     pub pub_key_hash: Vec<u8>,
 }
@@ -278,7 +279,7 @@ impl TXOutputs {
     }
 
     // TODO
-    pub fn deserialize_outputs(data: &Vec<u8>) -> Self {
+    pub fn deserialize_outputs(data: &Vec<u8>) -> TXOutputs {
         serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
     }
 }
