@@ -1,6 +1,8 @@
 extern crate leveldb_rs;
+extern crate secp256k1;
 
 use self::leveldb_rs::*;
+use self::secp256k1::key::{SecretKey, PublicKey};
 
 use super::block::*;
 use super::transaction::*;
@@ -110,27 +112,39 @@ impl BlockChain {
     }
 
     // FindUTXO finds all unspent transaction outputs and returns transactions with spent outputs removed
-    pub fn find_utxo(&self) -> Option<HashMap<String, TXOutput>> {
-//        let mut utxo = HashMap::new();
-        let mut spent_txos: HashMap<String, Vec<_>> = HashMap::new();
+    pub fn find_utxo(&self) -> Option<HashMap<String, TXOutputs>> {
+        let mut utxo: HashMap<String, TXOutputs> = HashMap::new();
+        let mut spent_txos: HashMap<String, Vec<isize>> = HashMap::new();
         let result = self.db.borrow().get_all_with_prefix(*BLOCK_PREFIX);
         let block_iter = self.iter();
         for block in block_iter {
             for transaction in &block.transactions {
-                let txid = util::encode_hex(&transaction.id);
-//
-//                for vout in &transaction.vout {
-//                    let txos = spent_txos.get(&txid);
-//                    let vout_value = vout.value;
-//                    txos.map(|v|{
-//                        for vout_idex in v {
-//                            if vout_idex == vout_value {
-//                                return v;
-//                            }
-//                        }
-//                        v
-//                    });
-//                }
+                let txid = &util::encode_hex(&transaction.id);
+
+                for vout in &transaction.vout {
+                    let txos = spent_txos.get(txid);
+                    let mut find = false;
+                    if txos.is_none() {
+                        continue;
+                    }
+                    // Was the output spent
+                    for vout_idx in txos.unwrap() {
+                        if vout.value == *vout_idx {
+                            find = true;
+                            break;
+                        }
+                    }
+                    if !find {
+                        let mut tmp_value = vec![];
+                        if let Some(x) = utxo.get_mut(&txid.clone()) {
+                            x.outputs.push(vout.clone());
+                            tmp_value = *x.outputs.clone();
+                        }else {
+                            tmp_value = vec![vout.clone()];
+                        }
+                        utxo.insert(txid.clone(), TXOutputs{outputs: Box::new(tmp_value)});
+                    }
+                }
 
                 if !transaction.is_coinbase() {
                     for input in &transaction.vin {
@@ -144,7 +158,41 @@ impl BlockChain {
                 }
             }
         }
-        None
+        Some(utxo)
+    }
+
+    // TODO why not use self.tip
+    pub fn get_best_height(&self) -> isize {
+        let last_hash = self.db.borrow().get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX).unwrap();
+        let last_block_data = self.db.borrow().get_with_prefix(&last_hash, *BLOCK_PREFIX).unwrap();
+        let last_block = Block::deserialize_block(&last_block_data);
+        last_block.height
+    }
+
+    pub fn get_block(&self, block_hash: &[u8]) -> Option<Block> {
+        let block_data = self.db.borrow().get_with_prefix(block_hash, *BLOCK_PREFIX);
+        block_data.map(|v|{Block::deserialize_block(&v)})
+    }
+
+    pub fn get_block_hashes(&self) -> Vec<Vec<u8>>{
+        let block_iter = self.iter();
+        let mut blocks = vec![];
+        for block in block_iter {
+            blocks.push(block.hash);
+        }
+        blocks
+    }
+
+    pub fn mine_block(&self, transactions: &Vec<Transaction>) -> Block {
+        for tx in transactions{
+            if !self.verify_transaction(&tx) {panic!("ERROR: Invalid transaction")}
+        }
+
+        let last_hash = self.db.borrow().get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX).unwrap();
+        let last_block_data = self.db.borrow().get_with_prefix(&last_hash, *BLOCK_PREFIX).unwrap();
+        let last_block = Block::deserialize_block(&last_block_data);
+        let last_height = last_block.height;
+        Block::new(transactions.clone(), last_hash, last_height+1)
     }
 
     pub fn iter(&self) -> IterBlockchain {
@@ -153,6 +201,29 @@ impl BlockChain {
         let current_block = Block::deserialize_block(&current_block_data);
         let db = self.db.borrow().clone();
         IterBlockchain::new(db, current_block)
+    }
+
+    pub fn sign_transaction(&self, tx: &mut Transaction, secret_key: &SecretKey) {
+        let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
+        for vin in &tx.vin {
+            let prev_tx = self.find_transaction(&vin.txid).unwrap();
+            prev_txs.insert(util::encode_hex(&prev_tx.id), prev_tx);
+        }
+        tx.sign(&secret_key, &prev_txs);
+    }
+
+    // TODO why coinbase need not verify
+    fn verify_transaction(&self, tx: &Transaction) -> bool {
+        if tx.is_coinbase() {
+            return true;
+        }
+
+        let mut prevs_tx: HashMap<String, Transaction> = HashMap::new();
+        for vin in &tx.vin {
+            let prev_tx = self.find_transaction(&vin.txid).unwrap();
+            prevs_tx.insert(util::encode_hex(&prev_tx.id), prev_tx);
+        }
+        tx.verify(&prevs_tx)
     }
 }
 

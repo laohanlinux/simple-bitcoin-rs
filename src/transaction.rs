@@ -239,8 +239,8 @@ impl TXInput {
 // TODO add signature script instead of pub_key_hash
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TXOutput {
-    value: isize,
-    pub_key_hash: Vec<u8>,
+    pub value: isize,
+    pub pub_key_hash: Vec<u8>,
 }
 
 impl TXOutput {
@@ -267,8 +267,8 @@ impl TXOutput {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct TXOutputs {
-    outputs: Box<Vec<TXOutput>>,
+pub struct TXOutputs {
+    pub outputs: Box<Vec<TXOutput>>,
 }
 
 impl TXOutputs {
