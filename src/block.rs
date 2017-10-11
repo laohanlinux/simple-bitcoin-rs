@@ -17,16 +17,17 @@ use std::io::Write;
 pub struct Block {
     pub timestamp: i64,
     pub prev_block_hash: Vec<u8>,
-    pub hash: Vec<u8>,
-
     pub transactions: Vec<Transaction>,
     pub nonce: isize,
+
+    // hash = hash_fn(timestamp|prev_block|transactions|nonce), no include height
+    pub hash: Vec<u8>,
     pub height: isize,
 }
 
 impl Block {
     pub fn new(transactions: Vec<Transaction>, prev_block_hash: Vec<u8>, height: isize) -> Block {
-        let mut block = Block {
+        let block = Block {
             timestamp: time::get_time().sec,
             prev_block_hash: prev_block_hash,
             hash: vec![],
@@ -34,7 +35,7 @@ impl Block {
             nonce: 0,
             height: height,
         };
-        let mut pow = proof_of_work::ProofOfWork::new_proof_of_work(&block);
+        let pow = proof_of_work::ProofOfWork::new_proof_of_work(&block);
 
         let (nonce, hash) = pow.run();
         return {

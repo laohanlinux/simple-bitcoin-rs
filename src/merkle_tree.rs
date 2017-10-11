@@ -48,6 +48,7 @@ impl MerkleTree {
                 let node =
                     MerkleNode::new_merkle_node(nodes[j].clone(), nodes[j + 1].clone(), vec![]);
                 new_level.push(node);
+                j+=2;
             }
             nodes = new_level;
         }

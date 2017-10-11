@@ -33,13 +33,13 @@ pub struct BlockChain {
 impl BlockChain {
     pub fn create_blockchain(address: String, node: String) -> BlockChain {
         let cbtx = Transaction::new_coinbase_tx(address, (*GENESIS_COINBASE_DATA).to_string());
-        let mut genesis_block = Block::new_genesis_block(cbtx);
+        let genesis_block = Block::new_genesis_block(cbtx);
 
         let mut db_opt = DBOptions::new().expect("error create options");
         db_opt.set_error_if_exists(true).set_create_if_missing(true);
 
         let db_file = rt_format!(DBFILE, node).unwrap();
-        let mut db = DBStore::new(&db_file, db_opt);
+        let db = DBStore::new(&db_file, db_opt);
 
         // store genesis_block into db
         let value = Block::serialize(&genesis_block);
@@ -59,7 +59,7 @@ impl BlockChain {
         let mut db_opt = DBOptions::new().expect("error create options");
         db_opt.set_create_if_missing(false);
         let db_file = rt_format!(DBFILE, node).unwrap();
-        let mut db = DBStore::new(&db_file, db_opt);
+        let db = DBStore::new(&db_file, db_opt);
         let tip = db.get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
             .unwrap();
         BlockChain {
@@ -70,7 +70,11 @@ impl BlockChain {
 
 
     pub fn add_block(&mut self, block: Block) {
-        if self.db.borrow().get_with_prefix(&block.hash, *BLOCK_PREFIX).is_some() {
+        if self.db
+            .borrow()
+            .get_with_prefix(&block.hash, *BLOCK_PREFIX)
+            .is_some()
+        {
             return;
         }
 
@@ -81,8 +85,14 @@ impl BlockChain {
             *BLOCK_PREFIX,
         );
 
-        let last_hash = self.db.borrow().get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX).unwrap();
-        let last_block_data = self.db.borrow().get_with_prefix(&last_hash, *BLOCK_PREFIX).unwrap();
+        let last_hash = self.db
+            .borrow()
+            .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
+            .unwrap();
+        let last_block_data = self.db
+            .borrow()
+            .get_with_prefix(&last_hash, *BLOCK_PREFIX)
+            .unwrap();
 
         let last_block = Block::deserialize_block(&last_block_data);
 
@@ -139,10 +149,10 @@ impl BlockChain {
                         if let Some(x) = utxo.get_mut(&txid.clone()) {
                             x.outputs.push(vout.clone());
                             tmp_value = *x.outputs.clone();
-                        }else {
+                        } else {
                             tmp_value = vec![vout.clone()];
                         }
-                        utxo.insert(txid.clone(), TXOutputs{outputs: Box::new(tmp_value)});
+                        utxo.insert(txid.clone(), TXOutputs { outputs: Box::new(tmp_value) });
                     }
                 }
 
@@ -151,7 +161,10 @@ impl BlockChain {
                         let in_txid = util::encode_hex(&input.txid);
                         let new_value = {
                             let value = spent_txos.get_mut(&in_txid);
-                            value.map_or(vec![input.vout], |v| { v.push(input.vout); vec![]})
+                            value.map_or(vec![input.vout], |v| {
+                                v.push(input.vout);
+                                vec![]
+                            })
                         };
                         spent_txos.insert(in_txid, new_value);
                     }
@@ -163,18 +176,24 @@ impl BlockChain {
 
     // TODO why not use self.tip
     pub fn get_best_height(&self) -> isize {
-        let last_hash = self.db.borrow().get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX).unwrap();
-        let last_block_data = self.db.borrow().get_with_prefix(&last_hash, *BLOCK_PREFIX).unwrap();
+        let last_hash = self.db
+            .borrow()
+            .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
+            .unwrap();
+        let last_block_data = self.db
+            .borrow()
+            .get_with_prefix(&last_hash, *BLOCK_PREFIX)
+            .unwrap();
         let last_block = Block::deserialize_block(&last_block_data);
         last_block.height
     }
 
     pub fn get_block(&self, block_hash: &[u8]) -> Option<Block> {
         let block_data = self.db.borrow().get_with_prefix(block_hash, *BLOCK_PREFIX);
-        block_data.map(|v|{Block::deserialize_block(&v)})
+        block_data.map(|v| Block::deserialize_block(&v))
     }
 
-    pub fn get_block_hashes(&self) -> Vec<Vec<u8>>{
+    pub fn get_block_hashes(&self) -> Vec<Vec<u8>> {
         let block_iter = self.iter();
         let mut blocks = vec![];
         for block in block_iter {
@@ -183,21 +202,45 @@ impl BlockChain {
         blocks
     }
 
-    pub fn mine_block(&self, transactions: &Vec<Transaction>) -> Block {
-        for tx in transactions{
-            if !self.verify_transaction(&tx) {panic!("ERROR: Invalid transaction")}
+    pub fn mine_block(&mut self, transactions: &Vec<Transaction>) -> Block {
+        for tx in transactions {
+            if !self.verify_transaction(&tx) {
+                panic!("ERROR: Invalid transaction")
+            }
         }
 
-        let last_hash = self.db.borrow().get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX).unwrap();
-        let last_block_data = self.db.borrow().get_with_prefix(&last_hash, *BLOCK_PREFIX).unwrap();
+        let last_hash = self.db
+            .borrow()
+            .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
+            .unwrap();
+        let last_block_data = self.db
+            .borrow()
+            .get_with_prefix(&last_hash, *BLOCK_PREFIX)
+            .unwrap();
         let last_block = Block::deserialize_block(&last_block_data);
         let last_height = last_block.height;
-        Block::new(transactions.clone(), last_hash, last_height+1)
+        let new_block = Block::new(transactions.clone(), last_hash, last_height + 1);
+        let new_block_data = Block::serialize(&new_block);
+        self.db.borrow().put_with_prefix(
+            &new_block.hash,
+            &new_block_data,
+            *BLOCK_PREFIX,
+        );
+        self.db.borrow().put_with_prefix(
+            *LAST_BLOCK_HASH_KEY,
+            &new_block.hash,
+            *LAST_BLOCK_HASH_PREFIX,
+        );
+        self.tip = new_block.hash.clone();
+        new_block
     }
 
     pub fn iter(&self) -> IterBlockchain {
         let current_hash = &self.tip;
-        let current_block_data = self.db.borrow().get_with_prefix(current_hash, *BLOCK_PREFIX).unwrap();
+        let current_block_data = self.db
+            .borrow()
+            .get_with_prefix(current_hash, *BLOCK_PREFIX)
+            .unwrap();
         let current_block = Block::deserialize_block(&current_block_data);
         let db = self.db.borrow().clone();
         IterBlockchain::new(db, current_block)
@@ -234,7 +277,10 @@ struct IterBlockchain {
 
 impl IterBlockchain {
     pub fn new(db: DBStore, next: Block) -> IterBlockchain {
-        IterBlockchain { db: db, next: Some(next) }
+        IterBlockchain {
+            db: db,
+            next: Some(next),
+        }
     }
 }
 
@@ -242,7 +288,10 @@ impl Iterator for IterBlockchain {
     type Item = Block;
     fn next(&mut self) -> Option<Self::Item> {
         let current_block = self.next.take().unwrap();
-        let prev_block_data = self.db.get_with_prefix(&current_block.prev_block_hash, *BLOCK_PREFIX);
+        let prev_block_data = self.db.get_with_prefix(
+            &current_block.prev_block_hash,
+            *BLOCK_PREFIX,
+        );
         if prev_block_data.is_some() {
             let prev_block_data = prev_block_data.unwrap();
             let prev_block = Block::deserialize_block(&prev_block_data);

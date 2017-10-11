@@ -7,6 +7,7 @@ extern crate rust_base58;
 extern crate compare;
 extern crate rand;
 extern crate quick_error;
+extern crate byteorder;
 
 use super::transaction;
 use super::error::Error;
@@ -20,14 +21,43 @@ use self::rust_base58::{ToBase58, FromBase58};
 use self::compare::Compare;
 use self::rand::{Rng, thread_rng};
 use self::quick_error::ResultExt;
+use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use std::fs::{File, OpenOptions};
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::io::BufReader;
 use std::io::prelude::*;
 use std::cmp::Ordering::{Less, Greater};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::iter;
+
+pub fn write_i64(num: i64) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(0);
+    buf.write_i64::<BigEndian>(num).unwrap();
+    assert_eq!(buf.len(), 8);
+    buf
+}
+
+pub fn write_i32(num: i32) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(0);
+    buf.write_i32::<BigEndian>(num).unwrap();
+    assert_eq!(buf.len(), 4);
+    buf
+}
+
+pub fn read_i64(buf: &[u8]) -> i64 {
+    assert_eq!(buf.len(), 8);
+    let mut rdr = Cursor::new(buf);
+    rdr.read_i64::<BigEndian>().unwrap()
+}
+
+pub fn read_i32(buf: &[u8]) -> i32 {
+    assert_eq!(buf.len(), 4);
+    let mut rdr =Cursor::new(buf);
+    rdr.read_i32::<BigEndian>().unwrap()
+}
 
 pub fn read_file(path: &str) -> Result<Vec<u8>, Error> {
     let path = Path::new(path);
@@ -143,4 +173,21 @@ pub fn sha256(input: &[u8]) -> Vec<u8> {
     let mut hasher = Sha256::default();
     hasher.input(input);
     hasher.result().to_vec()
+}
+
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_bin_op(){
+        use super::{write_i32, write_i64, read_i32, read_i64};
+
+        let test_i32 = 1 << 30;
+        let write_i32_res = write_i32(test_i32);
+        assert_eq!(read_i32(&write_i32_res), test_i32);
+
+        let test_i64 = 1 << 63;
+        let write_i64_res = write_i64(test_i64);
+        assert_eq!(read_i64(&write_i64_res), test_i64);
+    }
 }

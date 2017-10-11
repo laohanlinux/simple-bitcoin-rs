@@ -79,21 +79,21 @@ pub fn dec_key(key: &[u8], prefix: &str) -> Vec<u8> {
 }
 
 
-#[cfg(test)]
-mod tests {
-    extern crate tempdir;
-    use self::tempdir::TempDir;
-    use std::io::{self, Write};
-    #[test]
-    fn db() {
-        let path = super::TempDir::new("/tmp/").unwrap();
-        let db = super::DBStore::new(&path.path());
-        db.put_with_prefix(b"hello", b"word", "L");
-        let value = db.get_with_prefix(b"hello", "L").unwrap();
-        writeln!(
-            io::stdout(),
-            "value => {:?}",
-            String::from_utf8(value).unwrap()
-        );
-    }
-}
+//#[cfg(test)]
+//mod tests {
+//    extern crate tempdir;
+//    use self::tempdir::TempDir;
+//    use std::io::{self, Write};
+//    #[test]
+//    fn db() {
+//        let path = super::TempDir::new("/tmp/").unwrap();
+//        let db = super::DBStore::new(&path.path());
+//        db.put_with_prefix(b"hello", b"word", "L");
+//        let value = db.get_with_prefix(b"hello", "L").unwrap();
+//        writeln!(
+//            io::stdout(),
+//            "value => {:?}",
+//            String::from_utf8(value).unwrap()
+//        );
+//    }
+//}
