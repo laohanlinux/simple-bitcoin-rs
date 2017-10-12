@@ -273,6 +273,9 @@ pub struct TXOutputs {
 }
 
 impl TXOutputs {
+    pub fn new(outputs: Vec<TXOutput>) -> TXOutputs {
+        TXOutputs { outputs: Box::new(outputs) }
+    }
     // TODO
     pub fn serialize(txo: &TXOutputs) -> Vec<u8> {
         serde_json::to_string(txo).unwrap().into_bytes()

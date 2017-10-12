@@ -21,3 +21,4 @@ mod util;
 mod merkle_tree;
 mod transaction;
 mod proof_of_work;
+mod http_server;

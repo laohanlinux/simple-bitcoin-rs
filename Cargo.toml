@@ -25,6 +25,8 @@ lazy_static = "0.2"
 runtime-fmt = "*"
 byteorder = "*"
 
+shio = "0.2.0"
+
 [[bin]]
 path = "src/main.rs"
 name = "bitcoin"

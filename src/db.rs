@@ -70,6 +70,12 @@ impl DBStore {
             })
             .collect()
     }
+
+    pub fn delete(&self, key: &[u8]) {
+        let db_clone = self.db.clone();
+        let mut db = db_clone.lock().unwrap();
+        db.delete(key).unwrap();
+    }
 }
 
 pub fn dec_key(key: &[u8], prefix: &str) -> Vec<u8> {

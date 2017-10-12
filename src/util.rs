@@ -55,7 +55,7 @@ pub fn read_i64(buf: &[u8]) -> i64 {
 
 pub fn read_i32(buf: &[u8]) -> i32 {
     assert_eq!(buf.len(), 4);
-    let mut rdr =Cursor::new(buf);
+    let mut rdr = Cursor::new(buf);
     rdr.read_i32::<BigEndian>().unwrap()
 }
 
@@ -179,7 +179,7 @@ pub fn sha256(input: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_bin_op(){
+    fn test_bin_op() {
         use super::{write_i32, write_i64, read_i32, read_i64};
 
         let test_i32 = 1 << 30;
