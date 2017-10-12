@@ -10,6 +10,10 @@ extern crate lazy_static;
 #[macro_use]
 extern crate runtime_fmt;
 
+#[macro_use]
+extern crate slog;
+extern crate slog_term;
+
 mod error;
 mod block;
 mod blockchain;
@@ -22,3 +26,5 @@ mod merkle_tree;
 mod transaction;
 mod proof_of_work;
 mod http_server;
+mod cli;
+mod log;

@@ -24,8 +24,10 @@ quick-error = "*"
 lazy_static = "0.2"
 runtime-fmt = "*"
 byteorder = "*"
-
+slog = "*"
+slog-term = "*"
 shio = "0.2.0"
+clap = "2.26.2"
 
 [[bin]]
 path = "src/main.rs"

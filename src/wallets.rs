@@ -11,11 +11,17 @@ use std::collections::HashMap;
 const WALLET_FILE: &str = "Wallet_%s.data";
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Wallets {
-    wallets: HashMap<String, Wallet>,
+pub struct Wallets {
+    pub wallets: HashMap<String, Wallet>,
 }
 
 impl Wallets {
+    pub fn new() -> Result<Wallets, Error> {
+        let mut wallets = Wallets { wallets: HashMap::new() };
+        wallets.create_wallet();
+        Ok(wallets)
+    }
+
     pub fn new_wallets(node: String) -> Result<Wallets, Error> {
         Ok(Self::load_from_file(&node))
     }
@@ -32,21 +38,29 @@ impl Wallets {
         self.wallets.get(&address)
     }
 
-    fn load_from_file(node: &str) -> Wallets {
+    pub fn list_address(&self) -> Vec<String> {
+        let mut address = vec![];
+        for (addr, _) in &self.wallets {
+            address.push(addr.clone());
+        }
+        address
+    }
+
+    pub fn load_from_file(node: &str) -> Wallets {
         let contents = util::read_file(node).unwrap();
         Self::deserialize(&contents)
     }
 
-    fn save_to_file(&self, node: &str) {
+    pub fn save_to_file(&self, node: &str) {
         let contents = Self::serialize(self);
         util::write_file(node, &contents).unwrap();
     }
 
-    fn serialize(wallets: &Wallets) -> Vec<u8> {
+    pub fn serialize(wallets: &Wallets) -> Vec<u8> {
         serde_json::to_string(wallets).unwrap().into_bytes()
     }
 
-    fn deserialize(data: &Vec<u8>) -> Wallets {
+    pub fn deserialize(data: &Vec<u8>) -> Wallets {
         serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
     }
 }

@@ -18,8 +18,8 @@ const ADDRESS_CHECKSUM_LEN: usize = 4;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Wallet {
-    secret_key: SecretKey,
-    public_key: PublicKey,
+    pub secret_key: SecretKey,
+    pub public_key: PublicKey,
 }
 
 impl Wallet {
