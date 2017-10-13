@@ -4,16 +4,19 @@ extern crate sha2;
 extern crate serde;
 extern crate serde_json;
 extern crate hex;
+extern crate slog;
+extern crate slog_term;
 
 use self::secp256k1::{Message, ContextFlag};
 use self::secp256k1::key::{SecretKey, PublicKey};
 use self::rand::{Rng, thread_rng};
 use self::sha2::{Sha256, Digest};
 
+use super::log::*;
 use super::util;
 use std::sync::{Arc, Mutex};
 
-const VERSION: u8 = 0u8;
+const VERSION: u8 = 1u8;
 const ADDRESS_CHECKSUM_LEN: usize = 4;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -69,12 +72,19 @@ impl Wallet {
         let actual_checksum = &public_key[(public_key.len() - ADDRESS_CHECKSUM_LEN)..];
         // 1. check address sum
         if util::compare_slice_u8(&target_checksum, &actual_checksum) == false {
+            warn!(LOG, "address checksum is not equal");
             return false;
         }
-
-        let version_slice = &public_key[..1];
+        debug!(LOG, "{:?}", &public_key);
+        let version_slice = &public_key[..2];
         // 2. check version
         if util::compare_slice_u8(version_slice, &vec![VERSION]) == false {
+            warn!(
+                LOG,
+                "address version is valid, {:?}, {:?}",
+                version_slice,
+                &vec![VERSION]
+            );
             return false;
         }
 

@@ -13,6 +13,11 @@ pub struct UTXOSet<'a> {
 
 impl<'a> UTXOSet<'a> {
     const UTXO_BLOCK_PREFIX: &'a str = "utxo-";
+
+    pub fn new(blockchain: &'a BlockChain) -> UTXOSet {
+        UTXOSet { blockchain: blockchain }
+    }
+
     pub fn find_spend_able_outputs(
         &self,
         pubkey_hash: &[u8],

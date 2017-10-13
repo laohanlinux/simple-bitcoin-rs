@@ -22,7 +22,7 @@ lazy_static! {
     static ref GENESIS_COINBASE_DATA:&'static str = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
 }
 
-const DBFILE: &str = "blockchain_{:?}.db";
+const DBFILE: &str = "{}/blockchain.db";
 
 //#[derive]
 pub struct BlockChain {
@@ -31,6 +31,7 @@ pub struct BlockChain {
 }
 
 impl BlockChain {
+    // build a new block chain from genesis block
     pub fn create_blockchain(address: String, node: String) -> BlockChain {
         let cbtx = Transaction::new_coinbase_tx(address, (*GENESIS_COINBASE_DATA).to_string());
         let genesis_block = Block::new_genesis_block(cbtx);
@@ -38,7 +39,7 @@ impl BlockChain {
         let mut db_opt = DBOptions::new().expect("error create options");
         db_opt.set_error_if_exists(true).set_create_if_missing(true);
 
-        let db_file = rt_format!(DBFILE, node).unwrap();
+        let db_file = rt_format!(DBFILE, &node).unwrap();
         let db = DBStore::new(&db_file, db_opt);
 
         // store genesis_block into db
@@ -132,6 +133,7 @@ impl BlockChain {
         let result = self.db.borrow().get_all_with_prefix(*BLOCK_PREFIX);
         let block_iter = self.iter();
         for block in block_iter {
+            println!("{:?}", &block);
             for transaction in &block.transactions {
                 let txid = &util::encode_hex(&transaction.id);
                 let mut out_idx = 0;

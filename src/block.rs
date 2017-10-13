@@ -30,10 +30,9 @@ impl Block {
         let block = Block {
             timestamp: time::get_time().sec,
             prev_block_hash: prev_block_hash,
-            hash: vec![],
             transactions: transactions,
-            nonce: 0,
             height: height,
+            ..Default::default()
         };
         let pow = proof_of_work::ProofOfWork::new_proof_of_work(&block);
 
@@ -55,8 +54,7 @@ impl Block {
     }
 
     pub fn new_genesis_block(coinbase: Transaction) -> Self {
-        let mut block: Block = Default::default();
-        block.transactions = vec![coinbase];
+        let mut block: Block = Block::new(vec![coinbase], vec![], 0);
         block
     }
 

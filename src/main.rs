@@ -14,8 +14,10 @@ extern crate runtime_fmt;
 extern crate slog;
 extern crate slog_term;
 
+#[macro_use]
 extern crate clap;
-use clap::{Arg, App, SubCommand};
+
+use clap::{Arg, App, SubCommand, ArgMatches};
 
 mod error;
 mod block;
@@ -34,44 +36,79 @@ mod log;
 
 use log::*;
 
-#[derive(ArgKey, SubCommand)]
-enum SubCommands {
-
+// takes_value() and default_value() to read values from arguments like --option=foo
+fn main() {
+    let matches = App::new("bitcoin")
+        .version("0.1")
+        .author("Rg .<daimaldd@gmail.com>")
+        .about("lite bitcoin implements")
+        .arg(Arg::with_name("wallets").long("config").default_value(
+            "default_wallet.json",
+        ))
+        .subcommand(
+            SubCommand::with_name("new")
+                .about("new a bitcoin wallet")
+                .arg(
+                    Arg::with_name("force")
+                        .short("f")
+                        .long("force")
+                        .default_value("false"),
+                ),
+        )
+        .subcommand(SubCommand::with_name("open").about("open wallet"))
+        .subcommand(
+            SubCommand::with_name("create_blockchain")
+                .about("recreate a new block chain")
+                .arg(
+                    Arg::with_name("store")
+                        .long("store")
+                        .default_value("/tmp/block_chain")
+                        .value_name("STORE"),
+                )
+                .arg(
+                    Arg::with_name("address")
+                        .short("addr")
+                        .long("address")
+                        .value_name("ADDRESS"),
+                ),
+        )
+        .get_matches();
+    run(matches);
 }
 
-fn main() {
-    let matches = App::new("My Super Program")
-        .version("1.0")
-        .author("Rg .<daimaldd@gmail.com>")
-        .about("lite bitcoin")
-        .arg(Arg::with_name("config").short("c").long("config"))
-        .subcommand(
-            SubCommand::with_name("new").arg(
-                Arg::with_name("force")
-                    .short("f")
-                    .long("force")
-                    .takes_value(true),
-            ),
-        )
-        .subcommand(SubCommand::with_name("open"))
-        .get_matches();
-
-    let config = matches.value_of("config").unwrap_or("default_wallet.json");
-    info!(LOG, "{:?}", force);
-    info!(LOG, "wallet store {:?}", config);
-    match matches.subcommand_name() {
-        Some("new") => {
-            cli::create_wallet(config.to_owned(), force);
-            let force = if let Some(ref matches) = matches.subcommand_matches("new") {
-                matches.value_of("force")
-        .unwrap()//("false")
-        .to_owned()
-        .parse::<bool>()
-        .unwrap()
-            };
-
+fn run(matches: ArgMatches) -> Result<(), String> {
+    let config = matches.value_of("wallets").unwrap();
+    match matches.subcommand() {
+        ("new", Some(m)) => {
+            info!(LOG, "wallet store {:?}", config);
+            run_new(m, config);
+            Ok(())
         }
-        None => error!(LOG, "No subcommand was used"),
-        _ => error!(LOG, "Some other subcommand was used"),
+        ("open", Some(m)) => {
+            info!(LOG, "wallet store {:?}", config);
+            run_open(m, config);
+            Ok(())
+        }
+        ("create_blockchain", Some(m)) => {
+            run_create_blockchain(m);
+            Ok(())
+        }
+        _ => Ok(()),
     }
+}
+
+fn run_new(matches: &ArgMatches, wallet: &str) {
+    let force = matches.value_of("force").unwrap().parse::<bool>().unwrap();
+    cli::create_wallet(wallet.to_owned(), force);
+}
+
+fn run_open(matches: &ArgMatches, wallet: &str) {
+    cli::open_wallet(wallet.to_owned());
+}
+
+fn run_create_blockchain(matches: &ArgMatches) {
+    let store = matches.value_of("store").unwrap();
+    let address = matches.value_of("address").unwrap();
+    debug!(LOG, "address: {}, store: {}", address, store);
+    cli::create_blockchain(address.to_owned(), store.to_owned()).unwrap();
 }

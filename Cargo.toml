@@ -27,7 +27,7 @@ byteorder = "*"
 slog = "*"
 slog-term = "*"
 shio = "0.2.0"
-clap = "2.26.2"
+clap = "2.6.1"
 
 [[bin]]
 path = "src/main.rs"

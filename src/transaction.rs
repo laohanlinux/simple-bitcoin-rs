@@ -237,7 +237,7 @@ impl TXInput {
 }
 
 // TODO add signature script instead of pub_key_hash
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct TXOutput {
     // value is the output's source counts
     pub value: isize,
@@ -248,7 +248,7 @@ impl TXOutput {
     pub fn new(value: isize, address: String) -> Self {
         let mut txo = TXOutput {
             value: value,
-            pub_key_hash: vec![],
+            ..Default::default()
         };
         txo.lock(&address.into_bytes());
         txo
