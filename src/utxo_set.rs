@@ -1,9 +1,8 @@
-use std::cell::RefCell;
-
 use super::block;
 use super::transaction::*;
 use super::blockchain::BlockChain;
 use super::util;
+use super::db::dec_key;
 
 use std::collections::HashMap;
 
@@ -77,6 +76,8 @@ impl<'a> UTXOSet<'a> {
         let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
         for kv in &kvs {
             db.delete(&kv.0);
+            let (p, k ) = dec_key(&kv.0, Self::UTXO_BLOCK_PREFIX);
+            println!("delete key {:?}", String::from_utf8(p.to_vec()).unwrap());
         }
 
         let utxos = self.blockchain.find_utxo();

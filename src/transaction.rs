@@ -10,14 +10,13 @@ extern crate rand;
 
 use self::sha2::{Sha256, Digest};
 use self::compare::Compare;
-use self::rust_base58::{ToBase58, FromBase58};
-use self::bigint::U256;
-use self::secp256k1::{Message, ContextFlag};
-use self::secp256k1::key::{SecretKey, PublicKey};
+use self::rust_base58::{FromBase58};
+use self::secp256k1::{Message};
+use self::secp256k1::key::{SecretKey};
 use self::rand::{Rng, thread_rng};
 
 use super::util;
-use std::cmp::Ordering::{Less, Greater};
+use std::cmp::Ordering::{Greater};
 use std::collections::HashMap;
 
 

@@ -1,10 +1,16 @@
 extern crate bigint;
 extern crate lazy_static;
+extern crate slog;
+extern crate slog_term;
 
 use self::bigint::U256;
+// use self::bigint::uint::*;
 
 use super::block::*;
 use super::util;
+use super::log::*;
+
+use std::iter;
 
 // TODO
 lazy_static!{
@@ -12,6 +18,7 @@ lazy_static!{
 }
 
 const TARGETBITS: usize = 16;
+// const TARGETBITS: usize = 4;
 
 pub struct ProofOfWork<'a> {
     pub block: &'a Block,
@@ -39,8 +46,8 @@ impl<'a> ProofOfWork<'a> {
             let data = self.prepare_data(n);
             nonce = n;
             hash = util::sha256(&data);
-            let hash_int: U256 =
-                U256::from_dec_str(&util::encode_hex(&hash)).expect("hash is tool bigger");
+            let hash_int: U256 = util::as_u256(&hash);
+            // info!(LOG, "hash_int: {:?}", hash_int);
             if hash_int < self.target {
                 break;
             }
@@ -72,9 +79,10 @@ impl<'a> ProofOfWork<'a> {
             self.block.prev_block_hash.len() + hash_transactions.len();
 
         let mut buf = Vec::with_capacity(buf_size);
+        buf.extend(iter::repeat(0).take(buf_size));
         buf[..prev_block_end].clone_from_slice(prev_block_hash);
         buf[prev_block_end..hash_transactions_end].clone_from_slice(hash_transactions);
-        buf[hash_transactions_end..timestamp_end].clone_from_slice(hash_transactions);
+        buf[hash_transactions_end..timestamp_end].clone_from_slice(timestamp);
         buf[timestamp_end..target_bits_end].clone_from_slice(target_bits);
         buf[target_bits_end..nonce_end].clone_from_slice(nonce);
 

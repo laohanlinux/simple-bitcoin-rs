@@ -8,18 +8,23 @@ extern crate compare;
 extern crate rand;
 extern crate quick_error;
 extern crate byteorder;
+extern crate bigint;
 
 use super::transaction;
 use super::error::Error;
+
+use self::bigint::U256;
+use self::bigint::uint::*;
+
 use self::sha2::{Sha256, Digest as Sha256Digest};
 use self::secp256k1::{Signature, Secp256k1, Message, ContextFlag};
 use self::secp256k1::key::{SecretKey, PublicKey};
 use self::crypto::ripemd160;
 use self::crypto::digest::Digest as Ripemd160Digest;
-use self::crc::{crc32, Hasher32};
+use self::crc::{crc32};
 use self::rust_base58::{ToBase58, FromBase58};
 use self::compare::Compare;
-use self::rand::{Rng, thread_rng};
+use self::rand::{thread_rng};
 use self::quick_error::ResultExt;
 use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
@@ -99,6 +104,25 @@ pub fn encode_hex<T: AsRef<[u8]>>(data: T) -> String {
 
 pub fn decode_hex<T: AsRef<[u8]>>(data: T) -> Vec<u8> {
     hex::decode(data).unwrap()
+}
+
+pub fn as_u256(data: &[u8]) -> U256 {
+    // let u256_dec = data.to_vec().iter().map(|v| format!("{}", v)).collect::<Vec<String>>().join("");
+    // let mut u256_dec: U256 = 0.into();
+    // let mut u256_dec: U256 = U256::from_big_endian(data);
+    // let data_size = data.len();
+    // let mut i:  usize = 1;
+    // for v in data {
+    //     let v: U256 = (*v).into();
+    //     let p: U256 = v.into();
+    //     let pow: U256 =U256::from_big_endian (data_size - i).into();
+    //     // let f = format!("{:?}", pow);
+    //     println!("{:?}", pow.to_hex());
+    //     u256_dec = u256_dec + (v * p.pow(pow));
+    //     i += 1;
+    // }
+    
+    U256::from_big_endian(data)
 }
 
 pub fn encode_ripemd160(text: &[u8]) -> Vec<u8> {

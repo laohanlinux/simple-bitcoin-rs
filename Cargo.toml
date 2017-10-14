@@ -13,7 +13,7 @@ hex = { git = "https://github.com/KokaKiwi/rust-hex.git"}
 util_rs = {git = "https://github.com/laohanlinux/util-rs.git"}
 compare = "*"
 rust-base58 = "*"
-bigint = "4.2.0"
+bigint = "*"
 rand = "*"
 rust-crypto = "^0.2"
 crc = "^1.0.0"

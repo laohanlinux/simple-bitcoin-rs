@@ -7,10 +7,9 @@ extern crate hex;
 extern crate slog;
 extern crate slog_term;
 
-use self::secp256k1::{Message, ContextFlag};
+use self::secp256k1::{ContextFlag};
 use self::secp256k1::key::{SecretKey, PublicKey};
-use self::rand::{Rng, thread_rng};
-use self::sha2::{Sha256, Digest};
+use self::rand::{thread_rng};
 
 use super::log::*;
 use super::util;

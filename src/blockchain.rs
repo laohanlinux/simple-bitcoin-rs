@@ -2,17 +2,14 @@ extern crate leveldb_rs;
 extern crate secp256k1;
 
 use self::leveldb_rs::*;
-use self::secp256k1::key::{SecretKey, PublicKey};
+use self::secp256k1::key::{SecretKey};
 
 use super::block::*;
 use super::transaction::*;
-use super::utxo_set::UTXOSet;
 use super::db::DBStore;
 use super::util;
 
-use std::io::Write;
 use std::cell::RefCell;
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
 lazy_static! {
@@ -24,7 +21,6 @@ lazy_static! {
 
 const DBFILE: &str = "{}/blockchain.db";
 
-//#[derive]
 pub struct BlockChain {
     tip: Vec<u8>,
     pub db: RefCell<DBStore>,
@@ -130,7 +126,6 @@ impl BlockChain {
         // 从最新的区块开始往前找，每找到一个区块，则将这些区块的输入放到spend_txos中，
         // 如果某个“输出”在spend_txos中找到一个引用它的“输入”，则表示该输入被消费了
         let mut spent_txos: HashMap<String, Vec<isize>> = HashMap::new();
-        let result = self.db.borrow().get_all_with_prefix(*BLOCK_PREFIX);
         let block_iter = self.iter();
         for block in block_iter {
             println!("{:?}", &block);
@@ -246,6 +241,7 @@ impl BlockChain {
 
     fn iter(&self) -> IterBlockchain {
         let current_hash = &self.tip;
+        println!("{:?}", current_hash);
         let current_block_data = self.db
             .borrow()
             .get_with_prefix(current_hash, *BLOCK_PREFIX)

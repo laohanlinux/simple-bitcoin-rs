@@ -1,0 +1,1 @@
+ rm -fr /tmp/block_chain && mkdir /tmp/block_chain && cargo build && RUST_BACKTRACE=1 ./target/debug/bitcoin create_blockchain --address=1Hy5ybzHSH3C39omN73nKEytxf9BZe9xVYbYbdasxQ36SLeYHz3DXHyteAvXgn8QQc9

@@ -1,5 +1,7 @@
 use super::util;
 
+use std::iter;
+
 #[derive(Debug, Clone)]
 pub struct MerkleTree {
     pub root: Option<Box<MerkleNode>>,
@@ -32,45 +34,54 @@ impl MerkleTree {
 
         let mut nodes = vec![];
         for dataum in &data {
-            let hash = util::sha256(&dataum);
-            nodes.push(MerkleNode {
-                data: Box::new(hash),
-                left: None,
-                right: None,
-            });
+            nodes.push(MerkleNode::new(&dataum));
         }
 
+        /**
+         * 
+         *  |n1|n2|n3|n4|n5|n6 
+         **/
         let data_size = data.len();
-        for _ in (0..data_size) {
+        while true {
             let mut new_level = vec![];
-            let mut j = 0;
-            while j < &nodes.len() / 2 {
+            let (mut i, mut j) = (0, 0);
+            while i < &nodes.len() / 2 {
                 let node =
-                    MerkleNode::new_merkle_node(nodes[j].clone(), nodes[j + 1].clone(), vec![]);
+                    MerkleNode::new_merkle_node(nodes[j].clone(), nodes[j + 1].clone());
                 new_level.push(node);
                 j += 2;
+                i +=1;
             }
             nodes = new_level;
+            if nodes.len() == 1 {
+                break;
+            }   
         }
-
         MerkleTree { root: Some(Box::new(nodes.pop().unwrap())) }
     }
 }
 
 impl MerkleNode {
-    fn new_merkle_node(left: MerkleNode, right: MerkleNode, data: Vec<u8>) -> MerkleNode {
-        let mut merkle_tree_node = MerkleNode {
-            data: Box::new(vec![]),
-            left: None,
-            right: None,
-        };
-
+    fn new(data: &[u8]) -> MerkleNode {
+        let mut mn: MerkleNode = Default::default();
+        mn.data = Box::new(util::sha256(data));
+        mn
+    }
+    fn new_merkle_node(left: MerkleNode, right: MerkleNode) -> MerkleNode {
+        let mut merkle_tree_node: MerkleNode = Default::default();
         let mut hash_data = Vec::with_capacity(left.data.len() + right.data.len());
+        hash_data.extend(iter::repeat(0).take(left.data.len() + right.data.len()));
         hash_data[..left.data.len()].clone_from_slice(&left.data);
         hash_data[left.data.len()..].clone_from_slice(&right.data);
 
         let hash = util::sha256(&hash_data);
         merkle_tree_node.data = Box::new(hash);
         merkle_tree_node
+    }
+}
+
+impl Default for MerkleNode {
+    fn default() -> MerkleNode {
+        MerkleNode {data: Box::new(vec![]), left: None, right: None}
     }
 }

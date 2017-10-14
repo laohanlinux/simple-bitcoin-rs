@@ -14,6 +14,9 @@ extern crate runtime_fmt;
 extern crate slog;
 extern crate slog_term;
 
+#[macro_use]
+extern crate bigint;
+
 mod error;
 mod block;
 mod blockchain;

@@ -17,6 +17,9 @@ extern crate slog_term;
 #[macro_use]
 extern crate clap;
 
+#[macro_use]
+extern crate bigint;
+
 use clap::{Arg, App, SubCommand, ArgMatches};
 
 mod error;
@@ -73,7 +76,9 @@ fn main() {
                 ),
         )
         .get_matches();
-    run(matches);
+    if let Err(e) = run(matches) {
+        error!(LOG, "{}", e);
+    }
 }
 
 fn run(matches: ArgMatches) -> Result<(), String> {

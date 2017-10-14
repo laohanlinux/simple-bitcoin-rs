@@ -2,7 +2,8 @@ extern crate leveldb_rs;
 extern crate tempdir;
 
 use self::leveldb_rs::*;
-use self::tempdir::TempDir;
+
+use super::util;
 
 use std::sync::{Arc, Mutex};
 use std::path::Path;
@@ -40,10 +41,10 @@ impl DBStore {
     }
 
     pub fn get_with_prefix(&self, key: &[u8], prefix: &str) -> Option<Vec<u8>> {
-        let dec_key = dec_key(key, prefix);
+        let enc_key = enc_key(key, prefix);
         let db_clone = self.db.clone();
         let db = db_clone.lock().unwrap();
-        match db.get(&dec_key) {
+        match db.get(&enc_key) {
             Ok(v) => v,
             Err(e) => {
                 let str = format!("{:?}", e);
@@ -53,10 +54,10 @@ impl DBStore {
     }
 
     pub fn put_with_prefix(&self, key: &[u8], value: &[u8], prefix: &str) {
-        let dec_key = dec_key(key, prefix);
+        let enc_key = enc_key(key, prefix);
         let db_clone = self.db.clone();
         let mut db = db_clone.lock().unwrap();
-        db.put(&dec_key, value).unwrap();
+        db.put(&enc_key, value).unwrap();
     }
 
     pub fn get_all_with_prefix(&self, prefix: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
@@ -65,8 +66,12 @@ impl DBStore {
         let kvs: Vec<(Vec<u8>, Vec<u8>)> = db.iter().unwrap().alloc().collect();
         kvs.into_iter()
             .filter(|ref tuple| {
-                let k = &String::from_utf8(tuple.0.to_vec()).unwrap();
-                k.starts_with(prefix)
+                let enc_key = &tuple.0;
+                let prefix = Vec::from(prefix);
+                if enc_key.len() < prefix.len() {
+                    return false;
+                }
+                enc_key.starts_with(&prefix)
             })
             .collect()
     }
@@ -78,13 +83,18 @@ impl DBStore {
     }
 }
 
-pub fn dec_key(key: &[u8], prefix: &str) -> Vec<u8> {
-    let mut dec_key = Vec::from(prefix);
-    dec_key.extend_from_slice(key);
-    dec_key
+pub fn enc_key(key: &[u8], prefix: &str) -> Vec<u8> {
+    let mut enc_key = Vec::from(prefix);
+    enc_key.extend_from_slice(key);
+    enc_key
 }
 
-
+pub fn dec_key<'a> (enc_key: &'a [u8], prefix: &str) -> (&'a [u8], &'a [u8]) {
+    let prefix_bit = Vec::from(prefix).len();
+    println!("{}, {}, {}", enc_key.len(), prefix_bit, prefix);
+    assert!(enc_key.len() >= prefix_bit);
+    (&enc_key[..prefix_bit], &enc_key[prefix_bit..])
+}
 //#[cfg(test)]
 //mod tests {
 //    extern crate tempdir;

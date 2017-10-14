@@ -5,13 +5,9 @@ extern crate hex;
 extern crate sha2;
 extern crate time;
 
-use self::sha2::{Sha256, Digest};
-use super::util;
 use super::proof_of_work;
 use super::transaction::*;
 use super::merkle_tree::MerkleTree;
-
-use std::io::Write;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Block {
@@ -54,7 +50,7 @@ impl Block {
     }
 
     pub fn new_genesis_block(coinbase: Transaction) -> Self {
-        let mut block: Block = Block::new(vec![coinbase], vec![], 0);
+        let block: Block = Block::new(vec![coinbase], vec![], 0);
         block
     }
 
