@@ -1,8 +1,12 @@
+extern crate slog;
+extern crate slog_term;
+
 use super::block;
 use super::transaction::*;
 use super::blockchain::BlockChain;
 use super::util;
 use super::db::dec_key;
+use super::log::*;
 
 use std::collections::HashMap;
 
@@ -56,9 +60,11 @@ impl<'a> UTXOSet<'a> {
         for kv in &kvs {
             let outs = TXOutputs::deserialize_outputs(&kv.1);
             for out in &*outs.outputs {
+                info!(LOG, "{:?}, {:?}", &pubkey_hash, &out.pub_key_hash);
                 if !out.is_locked_with_key(pubkey_hash) {
                     continue;
                 }
+                info!(LOG, "Find a utxo {:?}", &pubkey_hash);
                 utxos.push(out.clone());
             }
         }
@@ -74,14 +80,18 @@ impl<'a> UTXOSet<'a> {
     pub fn reindex(&self) {
         let db = &self.blockchain.db.borrow();
         let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
+        if kvs.len() == 0{
+            warn!(LOG, "no utxo in db");
+        }
         for kv in &kvs {
             db.delete(&kv.0);
-            let (p, k ) = dec_key(&kv.0, Self::UTXO_BLOCK_PREFIX);
-            println!("delete key {:?}", String::from_utf8(p.to_vec()).unwrap());
+            let (p, k) = dec_key(&kv.0, Self::UTXO_BLOCK_PREFIX);
+            warn!(LOG, "delete key {:?}{:?}, {:?}", String::from_utf8(p.to_vec()).unwrap(), k, &kv.1);
         }
 
         let utxos = self.blockchain.find_utxo();
         if utxos.is_none() {
+            warn!(LOG, "all output are spend");
             return;
         }
 

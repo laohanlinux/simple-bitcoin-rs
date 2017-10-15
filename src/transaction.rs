@@ -9,14 +9,12 @@ extern crate secp256k1;
 extern crate rand;
 
 use self::sha2::{Sha256, Digest};
-use self::compare::Compare;
-use self::rust_base58::{FromBase58};
 use self::secp256k1::{Message};
 use self::secp256k1::key::{SecretKey};
 use self::rand::{Rng, thread_rng};
 
 use super::util;
-use std::cmp::Ordering::{Greater};
+use super::wallet;
 use std::collections::HashMap;
 
 
@@ -120,21 +118,21 @@ impl Transaction {
 
     // String returns a human-readable representation of a transaction
     pub fn to_string(&self) -> String {
-        let mut lines: Vec<String> = vec![format!("--- Transaction :{:?}", self.id)];
+        let mut lines: Vec<String> = vec![format!("--- Transaction :{:?}", util::encode_hex(&self.id))];
         let mut idx = 0;
         for input in &self.vin {
             lines.push(format!("       Input:   {:?}", idx));
-            lines.push(format!("       TXID:    {:?}", input.txid));
+            lines.push(format!("       TXID:    {:?}", util::encode_hex(&input.txid)));
             lines.push(format!("       Out:     {:?}", input.vout));
-            lines.push(format!("       Signature: {:?}", input.signature));
-            lines.push(format!("       PubKey:  {:?}", input.pub_key));
+            lines.push(format!("       Signature: {:?}", util::encode_hex(&input.signature)));
+            lines.push(format!("       PubKey:  {:?}", util::encode_hex(&input.pub_key)));
             idx += 1;
         }
         idx = 0;
         for output in &self.vout {
             lines.push(format!("       Output:  {:?}", idx));
             lines.push(format!("       Value: {:?}", output.value));
-            lines.push(format!("       Script: {:?}", output.pub_key_hash));
+            lines.push(format!("       Script: {:?}", util::encode_hex(&output.pub_key_hash)));
             idx += 1;
         }
         lines.join("\n")
@@ -229,9 +227,7 @@ impl TXInput {
         }
     }
     pub fn uses_key(&self, pub_key: &Vec<u8>) -> bool {
-        util::compare_slice_u8(&self.pub_key, &pub_key);
-        let cmp = |l: &Vec<u8>, r: &Vec<u8>| l.len().cmp(&r.len());
-        cmp.compare(&self.pub_key, &pub_key) == Greater
+        util::compare_slice_u8(&self.pub_key, &pub_key)
     }
 }
 
@@ -249,20 +245,19 @@ impl TXOutput {
             value: value,
             ..Default::default()
         };
-        txo.lock(&address.into_bytes());
+        txo.lock(address);
         txo
     }
 
-    pub fn lock(&mut self, address: &[u8]) {
-        let pub_key_hash = address.from_base58().unwrap();
-        let (idx1, idx2) = (1, pub_key_hash.len() - 4);
+    pub fn lock(&mut self, address: String) {
+        let pub_key_hash = util::decode_base58(address);
+        let (idx1, idx2) = (1, pub_key_hash.len() - wallet::ADDRESS_CHECKSUM_LEN);
         let pub_key_hash = &pub_key_hash[idx1..idx2];
         self.pub_key_hash = pub_key_hash.to_vec();
     }
 
     pub fn is_locked_with_key(&self, pub_key_hash: &[u8]) -> bool {
-        let cmp = |l: &[u8], r: &[u8]| l.len().cmp(&r.len());
-        cmp.compare(&self.pub_key_hash, pub_key_hash) == Greater
+        util::compare_slice_u8(&self.pub_key_hash, pub_key_hash)
     }
 }
 

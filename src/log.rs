@@ -1,8 +1,10 @@
 extern crate slog;
 extern crate slog_term;
+extern crate slog_async;
 
-use slog::*;
+use self::slog::*;
 use std::io;
+use self::slog_async::Async;
 
 lazy_static! {
     pub static ref LOG: Logger = {

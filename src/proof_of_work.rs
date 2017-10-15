@@ -57,8 +57,7 @@ impl<'a> ProofOfWork<'a> {
 
     pub fn validate(&self) -> bool {
         let hash_data = util::sha256(&self.prepare_data(self.block.nonce));
-        let hash_dec = util::encode_hex(hash_data);
-        let hash_big = U256::from_dec_str(&hash_dec).expect("hash is too bigger");
+        let hash_big = util::as_u256(&hash_data);
         hash_big < self.target
     }
 

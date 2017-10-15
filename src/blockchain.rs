@@ -128,24 +128,24 @@ impl BlockChain {
         let mut spent_txos: HashMap<String, Vec<isize>> = HashMap::new();
         let block_iter = self.iter();
         for block in block_iter {
-            println!("{:?}", &block);
+            println!("==> {:?}", &block);
             for transaction in &block.transactions {
                 let txid = &util::encode_hex(&transaction.id);
                 let mut out_idx = 0;
                 for vout in &transaction.vout {
                     let txos = spent_txos.get(txid);
                     let mut find = false;
-                    if txos.is_none() {
-                        out_idx += 1;
-                        continue;
-                    }
-                    // Was the output spent
-                    for vout_idx in txos.unwrap() {
-                        if out_idx == *vout_idx {
-                            find = true;
-                            break;
+
+                    if txos.is_some(){
+                        for vout_idx in txos.unwrap() {
+                            if out_idx == *vout_idx {
+                                find = true;
+                                break;
+                            }
                         }
                     }
+                    // Was the output spent
+                    
                     if !find {
                         let mut tmp_value = vec![];
                         if let Some(x) = utxo.get_mut(&txid.clone()) {
@@ -239,15 +239,16 @@ impl BlockChain {
         new_block
     }
 
-    fn iter(&self) -> IterBlockchain {
+    pub fn iter(&self) -> IterBlockchain {
         let current_hash = &self.tip;
-        println!("{:?}", current_hash);
+        println!("current_hash {:?}", util::encode_hex(&current_hash));
         let current_block_data = self.db
             .borrow()
             .get_with_prefix(current_hash, *BLOCK_PREFIX)
             .unwrap();
         let current_block = Block::deserialize_block(&current_block_data);
         let db = self.db.borrow().clone();
+        println!("current_block: {:?}", current_block);
         IterBlockchain::new(db, current_block)
     }
 
@@ -275,7 +276,7 @@ impl BlockChain {
     }
 }
 
-struct IterBlockchain {
+pub struct IterBlockchain {
     next: Option<Block>,
     db: DBStore,
 }
@@ -292,6 +293,8 @@ impl IterBlockchain {
 impl Iterator for IterBlockchain {
     type Item = Block;
     fn next(&mut self) -> Option<Self::Item> {
+        if self.next.is_none(){return None;}
+
         let current_block = self.next.take().unwrap();
         let prev_block_data = self.db.get_with_prefix(
             &current_block.prev_block_hash,
@@ -302,6 +305,6 @@ impl Iterator for IterBlockchain {
             let prev_block = Block::deserialize_block(&prev_block_data);
             self.next = Some(prev_block);
         }
-        self.next.clone()
+        Some(current_block)
     }
 }

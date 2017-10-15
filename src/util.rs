@@ -30,13 +30,10 @@ use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use std::fs::{File, OpenOptions};
 use std::io::Cursor;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::io::BufReader;
 use std::io::prelude::*;
-use std::cmp::Ordering::{Less, Greater};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::iter;
+use std::cmp::Ordering::Equal;
 
 pub fn write_i64(num: i64) -> Vec<u8> {
     let mut buf = Vec::with_capacity(0);
@@ -52,6 +49,20 @@ pub fn write_i32(num: i32) -> Vec<u8> {
     buf
 }
 
+pub fn write_u32(num: u32) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(0);
+    buf.write_u32::<BigEndian>(num).unwrap();
+    assert_eq!(buf.len(), 4);
+    buf
+}
+
+pub fn write_u8(num: u8) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(0);
+    buf.write_u8(num).unwrap();
+    assert_eq!(buf.len(), 1);
+    buf
+}
+
 pub fn read_i64(buf: &[u8]) -> i64 {
     assert_eq!(buf.len(), 8);
     let mut rdr = Cursor::new(buf);
@@ -63,6 +74,19 @@ pub fn read_i32(buf: &[u8]) -> i32 {
     let mut rdr = Cursor::new(buf);
     rdr.read_i32::<BigEndian>().unwrap()
 }
+
+pub fn read_u32(buf: &[u8]) -> u32 {
+    assert_eq!(buf.len(), 4);
+    let mut rdr = Cursor::new(buf);
+    rdr.read_u32::<BigEndian>().unwrap()
+}
+
+pub fn read_u8(buf: &[u8]) -> u8 {
+    assert_eq!(buf.len(), 1);
+    let mut rdr = Cursor::new(buf);
+    rdr.read_u8().unwrap()
+}
+
 
 pub fn read_file(path: &str) -> Result<Vec<u8>, Error> {
     let path = Path::new(path);
@@ -87,7 +111,7 @@ pub fn write_file(path: &str, contents: &[u8]) -> Result<(), Error> {
 
 pub fn compare_slice_u8(s1: &[u8], s2: &[u8]) -> bool {
     let cmp = |l: &[u8], r: &[u8]| l.len().cmp(&r.len());
-    cmp.compare(s1, s2) == Greater
+    cmp.compare(s1, s2) == Equal
 }
 
 pub fn encode_base58(payload: &[u8]) -> String {
@@ -106,22 +130,7 @@ pub fn decode_hex<T: AsRef<[u8]>>(data: T) -> Vec<u8> {
     hex::decode(data).unwrap()
 }
 
-pub fn as_u256(data: &[u8]) -> U256 {
-    // let u256_dec = data.to_vec().iter().map(|v| format!("{}", v)).collect::<Vec<String>>().join("");
-    // let mut u256_dec: U256 = 0.into();
-    // let mut u256_dec: U256 = U256::from_big_endian(data);
-    // let data_size = data.len();
-    // let mut i:  usize = 1;
-    // for v in data {
-    //     let v: U256 = (*v).into();
-    //     let p: U256 = v.into();
-    //     let pow: U256 =U256::from_big_endian (data_size - i).into();
-    //     // let f = format!("{:?}", pow);
-    //     println!("{:?}", pow.to_hex());
-    //     u256_dec = u256_dec + (v * p.pow(pow));
-    //     i += 1;
-    // }
-    
+pub fn as_u256(data: &[u8]) -> U256 {   
     U256::from_big_endian(data)
 }
 
@@ -145,7 +154,7 @@ pub fn crc32(text: &[u8]) -> u32 {
 
 pub fn checksum_address(payload: &[u8]) -> Vec<u8> {
     let next = sha256(payload);
-    sha256(&next)
+    write_u32(crc32(&sha256(&next)))
 }
 
 pub fn double_sha256(input_str: String) -> Vec<u8> {
@@ -199,7 +208,6 @@ pub fn sha256(input: &[u8]) -> Vec<u8> {
     hasher.result().to_vec()
 }
 
-
 #[cfg(test)]
 mod tests {
     #[test]
@@ -213,5 +221,14 @@ mod tests {
         let test_i64 = 1 << 63;
         let write_i64_res = write_i64(test_i64);
         assert_eq!(read_i64(&write_i64_res), test_i64);
+    }
+
+    #[test]
+    fn test_compare() {
+        let s1 = [1, 206, 137, 99, 239, 57, 212, 134, 92, 105, 90, 64, 29, 64, 152, 90, 38, 111, 49, 250, 0, 60, 219, 82, 167, 191, 179, 42, 173, 234, 43, 86, 95, 115, 98, 108, 251, 120, 86, 167, 75, 128, 253, 228, 239];
+        let s2 = [1, 206, 137, 99, 239, 57, 212, 134, 92, 105, 90, 64, 29, 64, 152, 90, 38, 111, 49, 250, 0, 60, 219, 82, 167, 191, 179, 42, 173, 234, 43, 86, 95, 115, 98, 108, 251, 120, 86, 167, 75, 128, 253, 228, 239];
+        assert_eq!(s1.len(), s2.len());
+
+        assert!(super::compare_slice_u8(&s1, &s2));
     }
 }

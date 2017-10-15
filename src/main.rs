@@ -40,6 +40,8 @@ mod log;
 use log::*;
 
 // takes_value() and default_value() to read values from arguments like --option=foo
+
+const STORE: & str = "/tmp/block_chain";
 fn main() {
     let matches = App::new("bitcoin")
         .version("0.1")
@@ -65,7 +67,7 @@ fn main() {
                 .arg(
                     Arg::with_name("store")
                         .long("store")
-                        .default_value("/tmp/block_chain")
+                        .default_value(STORE)
                         .value_name("STORE"),
                 )
                 .arg(
@@ -74,6 +76,47 @@ fn main() {
                         .long("address")
                         .value_name("ADDRESS"),
                 ),
+        )
+        .subcommand(
+            SubCommand::with_name("print")
+            .about("print all the block")
+            .arg(
+                Arg::with_name("store")
+                .long("store")
+                .default_value(STORE)
+                .value_name("STORE"),
+            )
+        )
+        .subcommand(
+            SubCommand::with_name("reindex")
+            .about("rebuild utxo")
+            .arg(
+                Arg::with_name("store")
+                .long("store")
+                .default_value(STORE)
+                .value_name("STORE"),
+            )
+            .arg(
+                Arg::with_name("address")
+                    .short("addr")
+                    .long("address")
+                    .value_name("ADDRESS"),
+            ),
+        )
+        .subcommand(
+            SubCommand::with_name("balance")
+            .about("get accout's balances")
+            .arg(
+                Arg::with_name("store")
+                .long("store")
+                .default_value(STORE)
+            )
+            .arg(
+                Arg::with_name("address")
+                .long("address")
+                .short("addr")
+                .value_name("ADDRESS")
+            )
         )
         .get_matches();
     if let Err(e) = run(matches) {
@@ -98,6 +141,18 @@ fn run(matches: ArgMatches) -> Result<(), String> {
             run_create_blockchain(m);
             Ok(())
         }
+        ("print", Some(m)) => {
+            run_print(m);
+            Ok(())
+        }
+        ("reindex", Some(m)) => {
+            run_reindex(m);
+            Ok(())
+        }
+        ("balance", Some(m)) => {
+            run_get_balance(m);
+            Ok(())
+        }
         _ => Ok(()),
     }
 }
@@ -114,6 +169,21 @@ fn run_open(matches: &ArgMatches, wallet: &str) {
 fn run_create_blockchain(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
     let address = matches.value_of("address").unwrap();
-    debug!(LOG, "address: {}, store: {}", address, store);
     cli::create_blockchain(address.to_owned(), store.to_owned()).unwrap();
+}
+
+fn run_print(matches: &ArgMatches) {
+    let store = matches.value_of("store").unwrap();
+    cli::print_chain(store.to_owned()).unwrap();
+}
+
+fn run_reindex(matches: &ArgMatches) {
+    let store = matches.value_of("store").unwrap();
+    cli::reindex_utxo(store.to_owned()).unwrap();
+}
+
+fn run_get_balance(matches: &ArgMatches) {
+    let store = matches.value_of("store").unwrap();
+    let address = matches.value_of("address").unwrap();
+    cli::get_balance(address.to_owned(), store.to_owned());
 }
