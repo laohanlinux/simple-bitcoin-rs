@@ -9,14 +9,15 @@ extern crate secp256k1;
 extern crate rand;
 
 use self::sha2::{Sha256, Digest};
-use self::secp256k1::{Message};
-use self::secp256k1::key::{SecretKey};
+use self::secp256k1::Message;
+use self::secp256k1::key::SecretKey;
 use self::rand::{Rng, thread_rng};
 
 use super::util;
-use super::wallet;
+use super::wallet::{Wallet, ADDRESS_CHECKSUM_LEN};
+use super::wallets::Wallets;
 use std::collections::HashMap;
-
+use super::utxo_set::UTXOSet;
 
 const SUBSIDY: isize = 10;
 
@@ -50,9 +51,49 @@ impl Transaction {
         tx
     }
 
+    pub fn new_utxo_transaction(
+        wallet: &Wallet,
+        to: String,
+        amount: isize,
+        utxoset: &UTXOSet,
+    ) -> Result<Transaction, String> {
+        let (mut inputs, mut outputs) = (vec![], vec![]);
+        let pub_key_hash = Wallet::hash_pubkey(&util::public_key_to_vec(&wallet.public_key, false));
+        // find the account unspend utxo from utxoset
+        let (acc, valid_outputs) = utxoset.find_spend_able_outputs(&pub_key_hash, amount);
+        if acc < amount {
+            return Err("ERROR: Not enough founds".to_owned());
+        }
+
+        // Build a list of inputs
+        for kv in &valid_outputs {
+            let txid = util::decode_hex(&kv.0);
+            for out in kv.1 {
+                let input = TXInput::new(txid.clone(), *out, vec![], pub_key_hash.clone());
+                inputs.push(input);
+            }
+        }
+        // Build a list of outputs
+        outputs.push(TXOutput::new(amount, to));
+        if acc > amount {
+            outputs.push(TXOutput::new(acc - amount, wallet.get_address()));
+        }
+
+        let mut tx = Transaction {
+            id: vec![],
+            vin: inputs,
+            vout: outputs,
+        };
+        let txid = tx.hash();
+        tx.id = txid;
+        utxoset.blockchain.sign_transaction(
+            &mut tx,
+            &wallet.secret_key,
+        );
+        Ok(tx)
+    }
+
     // TODO add
-
-
     pub fn deserialize_transaction(data: &Vec<u8>) -> Transaction {
         serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
     }
@@ -118,21 +159,34 @@ impl Transaction {
 
     // String returns a human-readable representation of a transaction
     pub fn to_string(&self) -> String {
-        let mut lines: Vec<String> = vec![format!("--- Transaction :{:?}", util::encode_hex(&self.id))];
+        let mut lines: Vec<String> =
+            vec![format!("--- Transaction :{:?}", util::encode_hex(&self.id))];
         let mut idx = 0;
         for input in &self.vin {
             lines.push(format!("       Input:   {:?}", idx));
-            lines.push(format!("       TXID:    {:?}", util::encode_hex(&input.txid)));
+            lines.push(format!(
+                "       TXID:    {:?}",
+                util::encode_hex(&input.txid)
+            ));
             lines.push(format!("       Out:     {:?}", input.vout));
-            lines.push(format!("       Signature: {:?}", util::encode_hex(&input.signature)));
-            lines.push(format!("       PubKey:  {:?}", util::encode_hex(&input.pub_key)));
+            lines.push(format!(
+                "       Signature: {:?}",
+                util::encode_hex(&input.signature)
+            ));
+            lines.push(format!(
+                "       PubKey:  {:?}",
+                util::encode_hex(&input.pub_key)
+            ));
             idx += 1;
         }
         idx = 0;
         for output in &self.vout {
             lines.push(format!("       Output:  {:?}", idx));
             lines.push(format!("       Value: {:?}", output.value));
-            lines.push(format!("       Script: {:?}", util::encode_hex(&output.pub_key_hash)));
+            lines.push(format!(
+                "       Script: {:?}",
+                util::encode_hex(&output.pub_key_hash)
+            ));
             idx += 1;
         }
         lines.join("\n")
@@ -251,7 +305,7 @@ impl TXOutput {
 
     pub fn lock(&mut self, address: String) {
         let pub_key_hash = util::decode_base58(address);
-        let (idx1, idx2) = (1, pub_key_hash.len() - wallet::ADDRESS_CHECKSUM_LEN);
+        let (idx1, idx2) = (1, pub_key_hash.len() - ADDRESS_CHECKSUM_LEN);
         let pub_key_hash = &pub_key_hash[idx1..idx2];
         self.pub_key_hash = pub_key_hash.to_vec();
     }

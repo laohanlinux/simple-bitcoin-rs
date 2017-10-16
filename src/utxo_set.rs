@@ -9,15 +9,16 @@ use super::db::dec_key;
 use super::log::*;
 
 use std::collections::HashMap;
+use std::cell::Ref;
 
 pub struct UTXOSet<'a> {
-    pub blockchain: &'a BlockChain,
+    pub blockchain: Ref<'a, BlockChain>,
 }
 
 impl<'a> UTXOSet<'a> {
-    const UTXO_BLOCK_PREFIX: &'a str = "utxo-";
+    const UTXO_BLOCK_PREFIX: &'static str = "utxo-";
 
-    pub fn new(blockchain: &'a BlockChain) -> UTXOSet {
+    pub fn new(blockchain: Ref<BlockChain>) -> UTXOSet {
         UTXOSet { blockchain: blockchain }
     }
 
@@ -28,7 +29,7 @@ impl<'a> UTXOSet<'a> {
     ) -> (isize, HashMap<String, Vec<isize>>) {
         let mut unspent_outs: HashMap<String, Vec<isize>> = HashMap::new();
         let mut accumulated = 0;
-        let db = &self.blockchain.db.borrow();
+        let db = self.blockchain.db.borrow();
 
         let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
         for kv in &kvs {
@@ -53,10 +54,14 @@ impl<'a> UTXOSet<'a> {
         (accumulated, unspent_outs)
     }
 
+    // |netenv|pub_key_hash|checksum|
     pub fn find_utxo(&self, pubkey_hash: &[u8]) -> Vec<TXOutput> {
         let mut utxos = Vec::<TXOutput>::new();
         let db = &self.blockchain.db.borrow();
         let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
+        if kvs.len() == 0 {
+            warn!(LOG, "no utxo in blockchain({})", Self::UTXO_BLOCK_PREFIX);
+        }
         for kv in &kvs {
             let outs = TXOutputs::deserialize_outputs(&kv.1);
             for out in &*outs.outputs {
@@ -78,15 +83,21 @@ impl<'a> UTXOSet<'a> {
     }
 
     pub fn reindex(&self) {
-        let db = &self.blockchain.db.borrow();
+        let db = self.blockchain.db.borrow();
         let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
-        if kvs.len() == 0{
+        if kvs.len() == 0 {
             warn!(LOG, "no utxo in db");
         }
         for kv in &kvs {
             db.delete(&kv.0);
             let (p, k) = dec_key(&kv.0, Self::UTXO_BLOCK_PREFIX);
-            warn!(LOG, "delete key {:?}{:?}, {:?}", String::from_utf8(p.to_vec()).unwrap(), k, &kv.1);
+            warn!(
+                LOG,
+                "delete key {:?}{:?}, {:?}",
+                String::from_utf8(p.to_vec()).unwrap(),
+                k,
+                &kv.1
+            );
         }
 
         let utxos = self.blockchain.find_utxo();
@@ -96,6 +107,7 @@ impl<'a> UTXOSet<'a> {
         }
 
         for kv in &utxos.unwrap() {
+            info!(LOG, "unspend utxo: {}", &kv.0);
             db.put_with_prefix(
                 &util::decode_hex(&kv.0),
                 &TXOutputs::serialize(&kv.1),

@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 const WALLET_FILE: &str = "Wallet_%s.data";
 
+// key => base58(|netenv|pub_key_hash|checksum|)
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Wallets {
     pub wallets: HashMap<String, Wallet>,
@@ -29,7 +30,7 @@ impl Wallets {
     // return new wallet address
     pub fn create_wallet(&mut self) -> String {
         let wallet = Wallet::new();
-        let address = wallet.get_addrees();
+        let address = wallet.get_address();
         self.wallets.insert(address.clone(), wallet);
         address
     }

@@ -41,7 +41,7 @@ use log::*;
 
 // takes_value() and default_value() to read values from arguments like --option=foo
 
-const STORE: & str = "/tmp/block_chain";
+const STORE: &str = "/tmp/block_chain";
 fn main() {
     let matches = App::new("bitcoin")
         .version("0.1")
@@ -79,44 +79,62 @@ fn main() {
         )
         .subcommand(
             SubCommand::with_name("print")
-            .about("print all the block")
-            .arg(
-                Arg::with_name("store")
-                .long("store")
-                .default_value(STORE)
-                .value_name("STORE"),
-            )
+                .about("print all the block")
+                .arg(
+                    Arg::with_name("store")
+                        .long("store")
+                        .default_value(STORE)
+                        .value_name("STORE"),
+                ),
         )
         .subcommand(
             SubCommand::with_name("reindex")
-            .about("rebuild utxo")
-            .arg(
-                Arg::with_name("store")
-                .long("store")
-                .default_value(STORE)
-                .value_name("STORE"),
-            )
-            .arg(
-                Arg::with_name("address")
-                    .short("addr")
-                    .long("address")
-                    .value_name("ADDRESS"),
-            ),
+                .about("rebuild utxo")
+                .arg(
+                    Arg::with_name("store")
+                        .long("store")
+                        .default_value(STORE)
+                        .value_name("STORE"),
+                )
+                .arg(
+                    Arg::with_name("address")
+                        .short("addr")
+                        .long("address")
+                        .value_name("ADDRESS"),
+                ),
         )
         .subcommand(
             SubCommand::with_name("balance")
-            .about("get accout's balances")
-            .arg(
-                Arg::with_name("store")
-                .long("store")
-                .default_value(STORE)
-            )
-            .arg(
-                Arg::with_name("address")
-                .long("address")
-                .short("addr")
-                .value_name("ADDRESS")
-            )
+                .about("get accout's balances")
+                .arg(Arg::with_name("store").long("store").default_value(STORE))
+                .arg(
+                    Arg::with_name("address")
+                        .long("address")
+                        .short("addr")
+                        .value_name("ADDRESS"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("send")
+                .about("send money...")
+                .arg(Arg::with_name("store").long("store").default_value(
+                    "ADDRESS",
+                ))
+                .arg(
+                    Arg::with_name("wallet")
+                        .long("wallet")
+                        .default_value("default_wallet.json")
+                        .value_name("wallet"),
+                )
+                .arg(Arg::with_name("from").long("from").value_name("FROM"))
+                .arg(Arg::with_name("to").long("to").value_name("TO"))
+                .arg(Arg::with_name("amount").long("amount").value_name("amount"))
+                .arg(
+                    Arg::with_name("mine")
+                        .long("mine")
+                        .default_value("false")
+                        .value_name("mine"),
+                ),
         )
         .get_matches();
     if let Err(e) = run(matches) {
@@ -153,6 +171,10 @@ fn run(matches: ArgMatches) -> Result<(), String> {
             run_get_balance(m);
             Ok(())
         }
+        ("send", Some(m)) => {
+            run_send(m);
+            Ok(())
+        }
         _ => Ok(()),
     }
 }
@@ -185,5 +207,26 @@ fn run_reindex(matches: &ArgMatches) {
 fn run_get_balance(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
     let address = matches.value_of("address").unwrap();
-    cli::get_balance(address.to_owned(), store.to_owned());
+    cli::get_balance(address.to_owned(), store.to_owned()).unwrap();
+}
+
+fn run_send(matches: &ArgMatches) {
+    let store = matches.value_of("store").unwrap();
+    let wallet_store = matches.value_of("wallet").unwrap();
+    let from = matches.value_of("from").unwrap();
+    let to = matches.value_of("to").unwrap();
+    let amount = matches
+        .value_of("amount")
+        .unwrap()
+        .parse::<isize>()
+        .unwrap();
+    let mine = matches.value_of("mine").unwrap().parse::<bool>().unwrap();
+    cli::send(
+        from.to_owned(),
+        to.to_owned(),
+        amount,
+        wallet_store.to_owned(),
+        store.to_owned(),
+        mine,
+    ).unwrap();
 }

@@ -57,10 +57,12 @@ impl DBStore {
         let enc_key = enc_key(key, prefix);
         let db_clone = self.db.clone();
         let mut db = db_clone.lock().unwrap();
+        println!("put key {:?}, prefix:{}", &enc_key, prefix);
         db.put(&enc_key, value).unwrap();
     }
 
     pub fn get_all_with_prefix(&self, prefix: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
+        println!("find all: {}", prefix);
         let db_clone = self.db.clone();
         let mut db = db_clone.lock().unwrap();
         let kvs: Vec<(Vec<u8>, Vec<u8>)> = db.iter().unwrap().alloc().collect();
@@ -68,6 +70,7 @@ impl DBStore {
             .filter(|ref tuple| {
                 let enc_key = &tuple.0;
                 let prefix = Vec::from(prefix);
+                println!("prefix {:?}, {:?}", prefix, enc_key);
                 if enc_key.len() < prefix.len() {
                     return false;
                 }
@@ -89,7 +92,7 @@ pub fn enc_key(key: &[u8], prefix: &str) -> Vec<u8> {
     enc_key
 }
 
-pub fn dec_key<'a> (enc_key: &'a [u8], prefix: &str) -> (&'a [u8], &'a [u8]) {
+pub fn dec_key<'a>(enc_key: &'a [u8], prefix: &str) -> (&'a [u8], &'a [u8]) {
     let prefix_bit = Vec::from(prefix).len();
     println!("{}, {}, {}", enc_key.len(), prefix_bit, prefix);
     assert!(enc_key.len() >= prefix_bit);

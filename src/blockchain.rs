@@ -2,7 +2,7 @@ extern crate leveldb_rs;
 extern crate secp256k1;
 
 use self::leveldb_rs::*;
-use self::secp256k1::key::{SecretKey};
+use self::secp256k1::key::SecretKey;
 
 use super::block::*;
 use super::transaction::*;
@@ -136,7 +136,7 @@ impl BlockChain {
                     let txos = spent_txos.get(txid);
                     let mut find = false;
 
-                    if txos.is_some(){
+                    if txos.is_some() {
                         for vout_idx in txos.unwrap() {
                             if out_idx == *vout_idx {
                                 find = true;
@@ -145,7 +145,7 @@ impl BlockChain {
                         }
                     }
                     // Was the output spent
-                    
+
                     if !find {
                         let mut tmp_value = vec![];
                         if let Some(x) = utxo.get_mut(&txid.clone()) {
@@ -293,7 +293,9 @@ impl IterBlockchain {
 impl Iterator for IterBlockchain {
     type Item = Block;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.next.is_none(){return None;}
+        if self.next.is_none() {
+            return None;
+        }
 
         let current_block = self.next.take().unwrap();
         let prev_block_data = self.db.get_with_prefix(

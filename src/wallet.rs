@@ -7,9 +7,9 @@ extern crate hex;
 extern crate slog;
 extern crate slog_term;
 
-use self::secp256k1::{ContextFlag};
+use self::secp256k1::ContextFlag;
 use self::secp256k1::key::{SecretKey, PublicKey};
-use self::rand::{thread_rng};
+use self::rand::thread_rng;
 
 use super::log::*;
 use super::util;
@@ -41,18 +41,17 @@ impl Wallet {
     }
 
     // get bitcoin address
-    pub fn get_addrees(&self) -> String {
+    pub fn get_address(&self) -> String {
         // rimpemd160 20bytes
         let mut public_key = Self::hash_pubkey(&util::public_key_to_vec(&self.public_key, false));
-        let mut version_payload = util::write_u8(NETENV);
+        let version_payload = util::write_u8(NETENV);
         // 0x00x1|rimpemd160
-        
         let mut version_payload_clone = version_payload.clone();
         {
             version_payload_clone.append(&mut public_key);
             public_key = version_payload_clone;
         }
-        
+
         assert!(public_key.len() == 21);
         let mut address_sum = util::checksum_address(&public_key);
         assert!(address_sum.len() == 4);
@@ -83,19 +82,14 @@ impl Wallet {
         }
         let netenv = util::read_u8(&public_key[..1]);
         if netenv != NETENV {
-            warn!(
-                LOG,
-                "address version is valid, {:?}, {:?}",
-                netenv,
-                NETENV
-            );
+            warn!(LOG, "address version is valid, {:?}, {:?}", netenv, NETENV);
             return false;
         }
         true
     }
 
     // 1. sha256  2. ripmed160
-    fn hash_pubkey(public_key: &[u8]) -> Vec<u8> {
+    pub fn hash_pubkey(public_key: &[u8]) -> Vec<u8> {
         let public_sha256 = util::sha256(public_key);
         util::encode_ripemd160(&public_sha256)
     }
@@ -110,7 +104,10 @@ mod tests {
     #[test]
     fn test_wallet() {
         let new_wallet = Wallet::new();
-        println!("{}", util::public_key_to_vec(&new_wallet.public_key, true).len());
+        println!(
+            "{}",
+            util::public_key_to_vec(&new_wallet.public_key, true).len()
+        );
         assert!(util::public_key_to_vec(&new_wallet.public_key, false).len() == 65);
         assert!(util::public_key_to_vec(&new_wallet.public_key, true).len() == 33);
 

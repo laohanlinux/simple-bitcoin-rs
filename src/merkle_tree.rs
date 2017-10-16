@@ -38,24 +38,23 @@ impl MerkleTree {
         }
 
         /**
-         * 
-         *  |n1|n2|n3|n4|n5|n6 
+         *
+         *  |n1|n2|n3|n4|n5|n6
          **/
         let data_size = data.len();
         while true {
             let mut new_level = vec![];
             let (mut i, mut j) = (0, 0);
             while i < &nodes.len() / 2 {
-                let node =
-                    MerkleNode::new_merkle_node(nodes[j].clone(), nodes[j + 1].clone());
+                let node = MerkleNode::new_merkle_node(nodes[j].clone(), nodes[j + 1].clone());
                 new_level.push(node);
                 j += 2;
-                i +=1;
+                i += 1;
             }
             nodes = new_level;
             if nodes.len() == 1 {
                 break;
-            }   
+            }
         }
         MerkleTree { root: Some(Box::new(nodes.pop().unwrap())) }
     }
@@ -82,6 +81,10 @@ impl MerkleNode {
 
 impl Default for MerkleNode {
     fn default() -> MerkleNode {
-        MerkleNode {data: Box::new(vec![]), left: None, right: None}
+        MerkleNode {
+            data: Box::new(vec![]),
+            left: None,
+            right: None,
+        }
     }
 }

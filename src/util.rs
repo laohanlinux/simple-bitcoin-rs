@@ -21,16 +21,16 @@ use self::secp256k1::{Signature, Secp256k1, Message, ContextFlag};
 use self::secp256k1::key::{SecretKey, PublicKey};
 use self::crypto::ripemd160;
 use self::crypto::digest::Digest as Ripemd160Digest;
-use self::crc::{crc32};
+use self::crc::crc32;
 use self::rust_base58::{ToBase58, FromBase58};
 use self::compare::Compare;
-use self::rand::{thread_rng};
+use self::rand::thread_rng;
 use self::quick_error::ResultExt;
 use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use std::fs::{File, OpenOptions};
 use std::io::Cursor;
-use std::path::{Path};
+use std::path::Path;
 use std::io::BufReader;
 use std::io::prelude::*;
 use std::cmp::Ordering::Equal;
@@ -87,7 +87,6 @@ pub fn read_u8(buf: &[u8]) -> u8 {
     rdr.read_u8().unwrap()
 }
 
-
 pub fn read_file(path: &str) -> Result<Vec<u8>, Error> {
     let path = Path::new(path);
     let file = File::open(path).context(path)?;
@@ -130,7 +129,7 @@ pub fn decode_hex<T: AsRef<[u8]>>(data: T) -> Vec<u8> {
     hex::decode(data).unwrap()
 }
 
-pub fn as_u256(data: &[u8]) -> U256 {   
+pub fn as_u256(data: &[u8]) -> U256 {
     U256::from_big_endian(data)
 }
 
@@ -225,8 +224,100 @@ mod tests {
 
     #[test]
     fn test_compare() {
-        let s1 = [1, 206, 137, 99, 239, 57, 212, 134, 92, 105, 90, 64, 29, 64, 152, 90, 38, 111, 49, 250, 0, 60, 219, 82, 167, 191, 179, 42, 173, 234, 43, 86, 95, 115, 98, 108, 251, 120, 86, 167, 75, 128, 253, 228, 239];
-        let s2 = [1, 206, 137, 99, 239, 57, 212, 134, 92, 105, 90, 64, 29, 64, 152, 90, 38, 111, 49, 250, 0, 60, 219, 82, 167, 191, 179, 42, 173, 234, 43, 86, 95, 115, 98, 108, 251, 120, 86, 167, 75, 128, 253, 228, 239];
+        let s1 = [
+            1,
+            206,
+            137,
+            99,
+            239,
+            57,
+            212,
+            134,
+            92,
+            105,
+            90,
+            64,
+            29,
+            64,
+            152,
+            90,
+            38,
+            111,
+            49,
+            250,
+            0,
+            60,
+            219,
+            82,
+            167,
+            191,
+            179,
+            42,
+            173,
+            234,
+            43,
+            86,
+            95,
+            115,
+            98,
+            108,
+            251,
+            120,
+            86,
+            167,
+            75,
+            128,
+            253,
+            228,
+            239,
+        ];
+        let s2 = [
+            1,
+            206,
+            137,
+            99,
+            239,
+            57,
+            212,
+            134,
+            92,
+            105,
+            90,
+            64,
+            29,
+            64,
+            152,
+            90,
+            38,
+            111,
+            49,
+            250,
+            0,
+            60,
+            219,
+            82,
+            167,
+            191,
+            179,
+            42,
+            173,
+            234,
+            43,
+            86,
+            95,
+            115,
+            98,
+            108,
+            251,
+            120,
+            86,
+            167,
+            75,
+            128,
+            253,
+            228,
+            239,
+        ];
         assert_eq!(s1.len(), s2.len());
 
         assert!(super::compare_slice_u8(&s1, &s2));
