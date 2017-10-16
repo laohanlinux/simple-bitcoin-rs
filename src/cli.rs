@@ -30,6 +30,14 @@ pub fn create_wallet(node: String, del_old: bool) {
     });
 }
 
+pub fn add_wallet(node: String) {
+    let mut wallets = Wallets::new_wallets(node.clone()).unwrap();
+    let new_address = wallets.create_wallet();
+    fs::remove_file(&node).unwrap();
+    wallets.save_to_file(&node);
+    info!(LOG, "new wallet's address is {}", new_address);
+}
+
 pub fn open_wallet(node: String) {
     let wallets = Wallets::new_wallets(node).unwrap();
     info!(

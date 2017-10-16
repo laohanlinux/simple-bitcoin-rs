@@ -78,6 +78,16 @@ fn main() {
                 ),
         )
         .subcommand(
+            SubCommand::with_name("add_wallet")
+                .about("add a new wallet")
+                .arg(
+                    Arg::with_name("store")
+                        .long("store")
+                        .default_value(STORE)
+                        .value_name("STORE")
+                ),
+        )
+        .subcommand(
             SubCommand::with_name("print")
                 .about("print all the block")
                 .arg(
@@ -118,7 +128,7 @@ fn main() {
             SubCommand::with_name("send")
                 .about("send money...")
                 .arg(Arg::with_name("store").long("store").default_value(
-                    "ADDRESS",
+                    STORE,
                 ))
                 .arg(
                     Arg::with_name("wallet")
@@ -148,6 +158,10 @@ fn run(matches: ArgMatches) -> Result<(), String> {
         ("new", Some(m)) => {
             info!(LOG, "wallet store {:?}", config);
             run_new(m, config);
+            Ok(())
+        }
+        ("add_wallet", Some(m)) => {
+            run_add_wallet(m, config);
             Ok(())
         }
         ("open", Some(m)) => {
@@ -182,6 +196,10 @@ fn run(matches: ArgMatches) -> Result<(), String> {
 fn run_new(matches: &ArgMatches, wallet: &str) {
     let force = matches.value_of("force").unwrap().parse::<bool>().unwrap();
     cli::create_wallet(wallet.to_owned(), force);
+}
+
+fn run_add_wallet(matches: &ArgMatches, wallet: &str) {
+    cli::add_wallet(wallet.to_owned());
 }
 
 fn run_open(matches: &ArgMatches, wallet: &str) {
