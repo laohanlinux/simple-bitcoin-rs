@@ -55,6 +55,10 @@ impl DBStore {
                 }
                 enc_key.starts_with(&prefix)
             })
+            .map(|ref tuple| {
+                let (_, origin_key) = dec_key(&tuple.0, prefix);
+                (origin_key.to_vec(), tuple.1.clone())
+            })
             .collect()
     }
 

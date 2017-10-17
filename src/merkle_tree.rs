@@ -42,7 +42,7 @@ impl MerkleTree {
          *  |n1|n2|n3|n4|n5|n6
          **/
         let data_size = data.len();
-        while true {
+        loop  {
             let mut new_level = vec![];
             let (mut i, mut j) = (0, 0);
             while i < &nodes.len() / 2 {

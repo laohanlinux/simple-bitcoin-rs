@@ -9,7 +9,7 @@ use super::transaction::*;
 use super::db::DBStore;
 use super::util;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
 lazy_static! {
@@ -22,7 +22,7 @@ lazy_static! {
 const DBFILE: &str = "{}/blockchain.db";
 
 pub struct BlockChain {
-    tip: Vec<u8>,
+    tip: Cell<Vec<u8>>,
     pub db: RefCell<DBStore>,
 }
 
@@ -41,13 +41,14 @@ impl BlockChain {
         // store genesis_block into db
         let value = Block::serialize(&genesis_block);
         let key = genesis_block.hash;
+        println!("genesis_block hash {:?}", &key);
         db.put_with_prefix(&key, &value, *BLOCK_PREFIX);
 
         // store last block hash into db
         db.put_with_prefix(*LAST_BLOCK_HASH_KEY, &key, *LAST_BLOCK_HASH_PREFIX);
 
         BlockChain {
-            tip: key,
+            tip: Cell::new(key),
             db: RefCell::new(db),
         }
     }
@@ -60,13 +61,13 @@ impl BlockChain {
         let tip = db.get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
             .unwrap();
         BlockChain {
-            tip: tip,
+            tip: Cell::new(tip),
             db: RefCell::new(db),
         }
     }
 
 
-    pub fn add_block(&mut self, block: Block) {
+    pub fn add_block(&self, block: Block) {
         if self.db
             .borrow()
             .get_with_prefix(&block.hash, *BLOCK_PREFIX)
@@ -99,20 +100,18 @@ impl BlockChain {
                 &block.hash,
                 *LAST_BLOCK_HASH_PREFIX,
             );
-            self.tip = block.hash.clone();
+            self.tip.set(block.hash.clone());
         }
     }
 
     // TODO optizme it
     pub fn find_transaction(&self, id: &[u8]) -> Option<Transaction> {
-        let db = self.db.borrow();
-        let result = db.get_all_with_prefix(*BLOCK_PREFIX);
-        if result.len() == 0 {
-            return None;
-        }
-        for kv in &result {
-            if util::compare_slice_u8(&kv.0, id) {
-                return Some(Transaction::deserialize_transaction(&kv.1));
+        let block_iter = self.iter();
+        for block in block_iter {
+            for transaction in &block.transactions {
+               if util::compare_slice_u8(&transaction.id, id) {
+                    return Some(transaction.clone());
+               } 
             }
         }
         None
@@ -206,8 +205,9 @@ impl BlockChain {
         blocks
     }
 
-    pub fn mine_block(&mut self, transactions: &Vec<Transaction>) -> Block {
+    pub fn mine_block(&self, transactions: &Vec<Transaction>) -> Block {
         for tx in transactions {
+            println!("need to check transaction id is {:?}", &tx.id);
             if !self.verify_transaction(&tx) {
                 panic!("ERROR: Invalid transaction")
             }
@@ -235,12 +235,13 @@ impl BlockChain {
             &new_block.hash,
             *LAST_BLOCK_HASH_PREFIX,
         );
-        self.tip = new_block.hash.clone();
+        self.tip.set(new_block.hash.clone());
         new_block
     }
 
     pub fn iter(&self) -> IterBlockchain {
-        let current_hash = &self.tip;
+        let current_hash = &self.tip.take();
+        self.tip.set(current_hash.clone());
         println!("current_hash {:?}", util::encode_hex(&current_hash));
         let current_block_data = self.db
             .borrow()
@@ -255,6 +256,7 @@ impl BlockChain {
     pub fn sign_transaction(&self, tx: &mut Transaction, secret_key: &SecretKey) {
         let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
         for vin in &tx.vin {
+            println!("sign_transaction vin transaction id {:?}", &vin.txid);
             let prev_tx = self.find_transaction(&vin.txid).unwrap();
             prev_txs.insert(util::encode_hex(&prev_tx.id), prev_tx);
         }
@@ -301,7 +303,7 @@ impl Iterator for IterBlockchain {
         let prev_block_data = self.db.get_with_prefix(
             &current_block.prev_block_hash,
             *BLOCK_PREFIX,
-        );
+            );
         if prev_block_data.is_some() {
             let prev_block_data = prev_block_data.unwrap();
             let prev_block = Block::deserialize_block(&prev_block_data);

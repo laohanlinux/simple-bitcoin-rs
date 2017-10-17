@@ -34,6 +34,7 @@ impl<'a> UTXOSet<'a> {
         let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
         for kv in &kvs {
             let txid = util::encode_hex(&kv.0);
+            println!("find_spend_able_outputs txid: {:?}", &kv.0);
             let outs = TXOutputs::deserialize_outputs(&kv.1);
             let mut idx = 0;
             for out in &*outs.outputs {

@@ -17,6 +17,7 @@ use super::transaction;
 
 use std::fs;
 use std::cell::{Ref, RefCell};
+use std::rc::Rc;
 
 pub fn create_wallet(node: String, del_old: bool) {
     if del_old {
@@ -169,21 +170,26 @@ pub fn send(
     if !Wallet::validate_address(to.clone()) {
         return Err("ERROR: To's address is not valid".to_owned());
     }
-    let block_chain = RefCell::new(BlockChain::new_blockchain(node.clone()));
+    let block_chain = Rc::new(RefCell::new(BlockChain::new_blockchain(node.clone())));
     let utxo = UTXOSet::new(block_chain.borrow());
-    let wallets = Wallets::new_wallets(wallet_store).unwrap();
-    let from_wallet = wallets.get_wallet(from.clone()).unwrap();
-    let result =
-        transaction::Transaction::new_utxo_transaction(&from_wallet, to.clone(), amount, &utxo)?;
-    if mine_now {
+    let result = {
+        let wallets = Wallets::new_wallets(wallet_store).unwrap();
+        let from_wallet = wallets.get_wallet(from.clone()).unwrap();
+        transaction::Transaction::new_utxo_transaction(&from_wallet, to.clone(), amount, &utxo)?
+    };
+    info!(LOG,  "result: {:?}", result.id); 
+    let new_block = if mine_now {
         let cbtx = transaction::Transaction::new_coinbase_tx(from.clone(), "".to_owned());
         let txs = vec![cbtx, result];
-        let new_block = block_chain.borrow_mut().mine_block(&txs);
-        utxo.update(&new_block);
+        let new_block = block_chain.borrow().mine_block(&txs);
+        Some(new_block)
     } else {
-        // TODO
-        unimplemented!("");
-    }
+        None
+    };
+    if new_block.is_none() {
+        return Ok(());
+    } 
+    utxo.update(&new_block.unwrap());
     info!(LOG, "{:?} send {} to {:?}", from, amount, to);
     Ok(())
 }

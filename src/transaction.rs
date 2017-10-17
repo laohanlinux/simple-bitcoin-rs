@@ -13,13 +13,11 @@ use self::sha2::{Sha256, Digest};
 use self::secp256k1::Message;
 use self::secp256k1::key::SecretKey;
 use self::rand::{Rng, thread_rng};
-use self::prettytable::Table;
 use self::prettytable::row::Row;
 use self::prettytable::cell::Cell;
 
 use super::util;
 use super::wallet::{Wallet, ADDRESS_CHECKSUM_LEN};
-use super::wallets::Wallets;
 use std::collections::HashMap;
 use super::utxo_set::UTXOSet;
 
@@ -82,6 +80,8 @@ impl Transaction {
         if acc > amount {
             outputs.push(TXOutput::new(acc - amount, wallet.get_address()));
         }
+        println!("inputs size: {}", inputs.len());
+        println!("output size: {}", outputs.len());
 
         let mut tx = Transaction {
             id: vec![],
@@ -90,6 +90,7 @@ impl Transaction {
         };
         let txid = tx.hash();
         tx.id = txid;
+        println!("txid: {:?}", &tx.id);
         utxoset.blockchain.sign_transaction(
             &mut tx,
             &wallet.secret_key,
@@ -242,7 +243,7 @@ impl Transaction {
 
         // check input of prev output's reference
         for vin in &self.vin {
-            if prev_txs[&hex::encode(&self.id)].id.len() == 0 {
+            if prev_txs[&hex::encode(&vin.txid)].id.len() == 0 {
                 panic!("ERROR: Previous transaction is not correct");
             }
         }
@@ -255,6 +256,8 @@ impl Transaction {
             let prev_tx: &Transaction = prev_txs.get(&hex::encode(&tx_input.txid)).unwrap();
             tx_copy.vin[inid_idx].signature = vec![];
             tx_copy.vin[inid_idx].pub_key = prev_tx.vout[inid_idx].pub_key_hash.clone();
+
+            println!("public_key {:?}", &tx_input.pub_key);
 
             let origin_data_to_sign = util::packet_sign_content(&tx_copy);
             let verify = util::verify(&tx_input.pub_key, &tx_input.signature, origin_data_to_sign);
@@ -280,7 +283,7 @@ pub struct TXInput {
     pub vout: isize,
     // signature
     signature: Vec<u8>,
-    // public key
+    // public key, it is a ripemd160 format pub key
     pub pub_key: Vec<u8>,
 }
 
