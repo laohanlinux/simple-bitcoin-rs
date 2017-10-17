@@ -94,7 +94,7 @@ pub fn print_chain(node: String) -> Result<(), String> {
                     .validate()
             )),
         ]));
-        println!("==================================================================");
+        println!("Block");
         block_table.printstd();
         &block.transactions.into_iter().for_each(|tx| {
             let (txid, in_rows, out_rows) = tx.to_string();
@@ -108,9 +108,9 @@ pub fn print_chain(node: String) -> Result<(), String> {
                 out_table.add_row(row);
                 ()
             });
-            println!("==================================================================");
+            println!("Inputs");
             in_table.printstd();
-            println!("==================================================================");
+            println!("Outputs");
             out_table.printstd();
         });
         if block.prev_block_hash.len() == 0 {
