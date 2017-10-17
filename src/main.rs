@@ -20,6 +20,9 @@ extern crate clap;
 #[macro_use]
 extern crate bigint;
 
+#[macro_use]
+extern crate prettytable;
+
 use clap::{Arg, App, SubCommand, ArgMatches};
 
 mod error;

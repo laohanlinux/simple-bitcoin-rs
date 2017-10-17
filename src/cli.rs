@@ -1,5 +1,10 @@
 extern crate slog;
 extern crate slog_term;
+extern crate prettytable;
+
+use self::prettytable::Table;
+use self::prettytable::row::Row;
+use self::prettytable::cell::Cell;
 
 use super::util;
 use super::log::*;
@@ -72,20 +77,41 @@ pub fn print_chain(node: String) -> Result<(), String> {
     let block_chain = BlockChain::new_blockchain(node);
     let chain_iter = block_chain.iter();
     for block in chain_iter {
-        println!(
-            "==========Block {:?}==========",
-            util::encode_hex(&block.hash)
-        );
-        println!("Height: {}", block.height);
-        println!("Prev block: {:?}", util::encode_hex(&block.prev_block_hash));
-        let block_clone = block.clone();
-        let pow = ProofOfWork::new_proof_of_work(&block_clone);
-        println!("Pow: {}", pow.validate());
+        let mut block_table = Table::new();
+        block_table.add_row(Row::new(vec![
+            Cell::new("Block"),
+            Cell::new("Height"),
+            Cell::new("PrevBlock"),
+            Cell::new("Pow"),
+        ]));
+        block_table.add_row(Row::new(vec![
+            Cell::new(&util::encode_hex(&block.hash)),
+            Cell::new(&format!("{:?}", &block.height)),
+            Cell::new(&util::encode_hex(&block.prev_block_hash)),
+            Cell::new(&format!(
+                "{:?}",
+                ProofOfWork::new_proof_of_work(&block.clone())
+                    .validate()
+            )),
+        ]));
+        println!("==================================================================");
+        block_table.printstd();
         &block.transactions.into_iter().for_each(|tx| {
-            let tx_vec = tx.to_string().clone();
-            tx_vec.split(|v| format!("{}", v) == "\n").for_each(|c| {
-                println!("{}", c)
+            let (txid, in_rows, out_rows) = tx.to_string();
+            let mut in_table = Table::new();
+            let mut out_table = Table::new();
+            in_rows.into_iter().for_each(|row| {
+                in_table.add_row(row);
+                ()
             });
+            out_rows.into_iter().for_each(|row| {
+                out_table.add_row(row);
+                ()
+            });
+            println!("==================================================================");
+            in_table.printstd();
+            println!("==================================================================");
+            out_table.printstd();
         });
         if block.prev_block_hash.len() == 0 {
             break;

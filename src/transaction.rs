@@ -7,11 +7,15 @@ extern crate hex;
 extern crate bigint;
 extern crate secp256k1;
 extern crate rand;
+extern crate prettytable;
 
 use self::sha2::{Sha256, Digest};
 use self::secp256k1::Message;
 use self::secp256k1::key::SecretKey;
 use self::rand::{Rng, thread_rng};
+use self::prettytable::Table;
+use self::prettytable::row::Row;
+use self::prettytable::cell::Cell;
 
 use super::util;
 use super::wallet::{Wallet, ADDRESS_CHECKSUM_LEN};
@@ -158,38 +162,47 @@ impl Transaction {
     }
 
     // String returns a human-readable representation of a transaction
-    pub fn to_string(&self) -> String {
-        let mut lines: Vec<String> =
-            vec![format!("--- Transaction :{:?}", util::encode_hex(&self.id))];
+    pub fn to_string(&self) -> (String, Vec<Row>, Vec<Row>) {
+        let txid = util::encode_hex(&self.id);
+        let input_row = Row::new(vec![
+            Cell::new("in's idx"),
+            Cell::new("in's txid"),
+            Cell::new("in's ref out's idx"),
+            Cell::new("signature"),
+            Cell::new("PubKey"),
+        ]);
+        let output_row = Row::new(vec![
+            Cell::new("out's idx"),
+            Cell::new("out's value"),
+            Cell::new("out's script"),
+        ]);
+
+        let mut input_records = vec![input_row];
+        let mut output_records = vec![output_row];
+
         let mut idx = 0;
         for input in &self.vin {
-            lines.push(format!("       Input:   {:?}", idx));
-            lines.push(format!(
-                "       TXID:    {:?}",
-                util::encode_hex(&input.txid)
-            ));
-            lines.push(format!("       Out:     {:?}", input.vout));
-            lines.push(format!(
-                "       Signature: {:?}",
-                util::encode_hex(&input.signature)
-            ));
-            lines.push(format!(
-                "       PubKey:  {:?}",
-                util::encode_hex(&input.pub_key)
-            ));
+            let input_record = vec![
+                Cell::new(&format!("{}", idx)),
+                Cell::new(&util::encode_hex(&input.txid)),
+                Cell::new(&format!("{}", input.vout)),
+                Cell::new(&util::encode_hex(&input.signature)),
+                Cell::new(&util::encode_hex(&input.pub_key)),
+            ];
+            input_records.push(Row::new(input_record));
             idx += 1;
         }
         idx = 0;
         for output in &self.vout {
-            lines.push(format!("       Output:  {:?}", idx));
-            lines.push(format!("       Value: {:?}", output.value));
-            lines.push(format!(
-                "       Script: {:?}",
-                util::encode_hex(&output.pub_key_hash)
-            ));
+            let output_record = vec![
+                Cell::new(&format!("{}", idx)),
+                Cell::new(&format!("{:?}", output.value)),
+                Cell::new(&util::encode_hex(&output.pub_key_hash)),
+            ];
+            output_records.push(Row::new(output_record));
             idx += 1;
         }
-        lines.join("\n")
+        (txid, input_records, output_records)
     }
 
     // TrimmedCopy creates a trimmed copy of Transaction to be used in signing
