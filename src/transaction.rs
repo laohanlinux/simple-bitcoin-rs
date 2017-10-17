@@ -60,7 +60,8 @@ impl Transaction {
         utxoset: &UTXOSet,
     ) -> Result<Transaction, String> {
         let (mut inputs, mut outputs) = (vec![], vec![]);
-        let pub_key_hash = Wallet::hash_pubkey(&util::public_key_to_vec(&wallet.public_key, false));
+        let pub_key = util::public_key_to_vec(&wallet.public_key, false);
+        let pub_key_hash = Wallet::hash_pubkey(&pub_key);
         // find the account unspend utxo from utxoset
         let (acc, valid_outputs) = utxoset.find_spend_able_outputs(&pub_key_hash, amount);
         if acc < amount {
@@ -71,7 +72,7 @@ impl Transaction {
         for kv in &valid_outputs {
             let txid = util::decode_hex(&kv.0);
             for out in kv.1 {
-                let input = TXInput::new(txid.clone(), *out, vec![], pub_key_hash.clone());
+                let input = TXInput::new(txid.clone(), *out, vec![], pub_key.clone());
                 inputs.push(input);
             }
         }
