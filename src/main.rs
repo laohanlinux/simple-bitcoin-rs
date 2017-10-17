@@ -84,7 +84,7 @@ fn main() {
                     Arg::with_name("store")
                         .long("store")
                         .default_value(STORE)
-                        .value_name("STORE")
+                        .value_name("STORE"),
                 ),
         )
         .subcommand(
@@ -127,9 +127,7 @@ fn main() {
         .subcommand(
             SubCommand::with_name("send")
                 .about("send money...")
-                .arg(Arg::with_name("store").long("store").default_value(
-                    STORE,
-                ))
+                .arg(Arg::with_name("store").long("store").default_value(STORE))
                 .arg(
                     Arg::with_name("wallet")
                         .long("wallet")
@@ -209,23 +207,35 @@ fn run_open(matches: &ArgMatches, wallet: &str) {
 fn run_create_blockchain(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
     let address = matches.value_of("address").unwrap();
-    cli::create_blockchain(address.to_owned(), store.to_owned()).unwrap();
+    match cli::create_blockchain(address.to_owned(), store.to_owned()) {
+        Ok(_) => {}
+        Err(e) => println!("{}", e),
+    }
 }
 
 fn run_print(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
-    cli::print_chain(store.to_owned()).unwrap();
+    match cli::print_chain(store.to_owned()) {
+        Err(e) => println!("{}", e),
+        Ok(_) => {}
+    }
 }
 
 fn run_reindex(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
-    cli::reindex_utxo(store.to_owned()).unwrap();
+    match cli::reindex_utxo(store.to_owned()) {
+        Err(e) => println!("{}", e),
+        _ => {}
+    }
 }
 
 fn run_get_balance(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
     let address = matches.value_of("address").unwrap();
-    cli::get_balance(address.to_owned(), store.to_owned()).unwrap();
+    match cli::get_balance(address.to_owned(), store.to_owned()) {
+        Err(e) => println!("{}", e),
+        _ => {}
+    }
 }
 
 fn run_send(matches: &ArgMatches) {
@@ -239,12 +249,15 @@ fn run_send(matches: &ArgMatches) {
         .parse::<isize>()
         .unwrap();
     let mine = matches.value_of("mine").unwrap().parse::<bool>().unwrap();
-    cli::send(
+    match cli::send(
         from.to_owned(),
         to.to_owned(),
         amount,
         wallet_store.to_owned(),
         store.to_owned(),
         mine,
-    ).unwrap();
+    ) {
+        Ok(_) => {}
+        Err(e) => println!("{}", e), 
+    }
 }
