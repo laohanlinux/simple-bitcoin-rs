@@ -66,8 +66,10 @@ impl<'a> UTXOSet<'a> {
         for kv in &kvs {
             let outs = TXOutputs::deserialize_outputs(&kv.1);
             for out in &*outs.outputs {
+                info!(LOG, "{:?}", out);
                 info!(LOG, "{:?}, {:?}", &pubkey_hash, &out.pub_key_hash);
                 if !out.is_locked_with_key(pubkey_hash) {
+                    info!(LOG, "跳过");
                     continue;
                 }
                 info!(LOG, "Find a utxo {:?}", &pubkey_hash);

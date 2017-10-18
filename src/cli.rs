@@ -98,6 +98,7 @@ pub fn print_chain(node: String) -> Result<(), String> {
         ]));
         println!("Block");
         block_table.printstd();
+        let tx_number = RefCell::new(1);
         &block.transactions.into_iter().for_each(|tx| {
             let (txid, in_rows, out_rows) = tx.to_string();
             let mut in_table = Table::new();
@@ -110,10 +111,14 @@ pub fn print_chain(node: String) -> Result<(), String> {
                 out_table.add_row(row);
                 ()
             });
+            {
+                println!("交易{}, id:{}", tx_number.borrow(), txid);
+            }
             println!("Inputs");
             in_table.printstd();
             println!("Outputs");
             out_table.printstd();
+            *tx_number.borrow_mut() +=1;
         });
         if block.prev_block_hash.len() == 0 {
             break;

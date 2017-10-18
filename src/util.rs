@@ -109,6 +109,7 @@ pub fn write_file(path: &str, contents: &[u8]) -> Result<(), Error> {
 }
 
 pub fn compare_slice_u8(s1: &[u8], s2: &[u8]) -> bool {
+    println!("compare: {:?}, {:?}", s1, s2);
     let cmp = |l: &[u8], r: &[u8]| l.len().cmp(&r.len());
     cmp.compare(s1, s2) == Equal
 }
@@ -321,5 +322,9 @@ mod tests {
         assert_eq!(s1.len(), s2.len());
 
         assert!(super::compare_slice_u8(&s1, &s2));
+
+        let s2 = [31, 254, 100, 67, 198, 7, 126, 136, 53, 144, 173, 193, 233, 118, 113, 198, 218, 220, 70, 61];
+        let s1 = [75, 137, 91, 42, 254, 205, 222, 47, 210, 83, 130, 161, 129, 218, 136, 215, 116, 211, 90, 251]; 
+        assert!(!super::compare_slice_u8(&s1, &s2));
     }
 }
