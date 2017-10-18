@@ -90,13 +90,11 @@ impl<'a> UTXOSet<'a> {
             warn!(LOG, "no utxo in db");
         }
         for kv in &kvs {
-            db.delete(&kv.0);
-            let (p, k) = dec_key(&kv.0, Self::UTXO_BLOCK_PREFIX);
+            db.delete(&kv.0, Self::UTXO_BLOCK_PREFIX);
             warn!(
                 LOG,
-                "delete key {:?}{:?}, {:?}",
-                String::from_utf8(p.to_vec()).unwrap(),
-                k,
+                "delete key {:?}, {:?}",
+                kv.0,
                 &kv.1
             );
         }
@@ -136,7 +134,7 @@ impl<'a> UTXOSet<'a> {
                     }
                     if update_outs.outputs.len() == 0 {
                         // the txid's outputs all spend, delete it from db
-                        db.delete(&vin.txid);
+                        db.delete(&vin.txid, Self::UTXO_BLOCK_PREFIX);
                     } else {
                         // update the outputs
                         db.put_with_prefix(

@@ -52,7 +52,8 @@ pub fn open_wallet(node: String) {
     );
     let address = wallets.list_address();
     address.into_iter().fold(0, |acc, addr| {
-        info!(LOG, "地址[{:?}]=> {:?}", acc, addr);
+        let addr_vec =util::decode_base58(addr.clone());
+        info!(LOG, "地址[{:?}]=> {:?}, {:?}", acc, addr, addr_vec);
         acc + 1
     });
 }

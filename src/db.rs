@@ -40,6 +40,7 @@ impl DBStore {
         db.put(&enc_key, value).unwrap();
     }
 
+    // return value not included prefix
     pub fn get_all_with_prefix(&self, prefix: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
         println!("find all: {}", prefix);
         let db_clone = self.db.clone();
@@ -62,10 +63,11 @@ impl DBStore {
             .collect()
     }
 
-    pub fn delete(&self, key: &[u8]) {
+    pub fn delete(&self, key: &[u8], prefix: &str) {
+        let enc_key = enc_key(key, prefix);
         let db_clone = self.db.clone();
         let mut db = db_clone.lock().unwrap();
-        db.delete(key).unwrap();
+        db.delete(&enc_key).unwrap();
     }
 }
 
@@ -81,21 +83,31 @@ pub fn dec_key<'a>(enc_key: &'a [u8], prefix: &str) -> (&'a [u8], &'a [u8]) {
     assert!(enc_key.len() >= prefix_bit);
     (&enc_key[..prefix_bit], &enc_key[prefix_bit..])
 }
-//#[cfg(test)]
-//mod tests {
-//    extern crate tempdir;
-//    use self::tempdir::TempDir;
-//    use std::io::{self, Write};
-//    #[test]
-//    fn db() {
-//        let path = super::TempDir::new("/tmp/").unwrap();
-//        let db = super::DBStore::new(&path.path());
-//        db.put_with_prefix(b"hello", b"word", "L");
-//        let value = db.get_with_prefix(b"hello", "L").unwrap();
-//        writeln!(
-//            io::stdout(),
-//            "value => {:?}",
-//            String::from_utf8(value).unwrap()
-//        );
-//    }
-//}
+#[cfg(test)]
+mod tests {
+    extern crate tempdir;
+    use self::tempdir::TempDir;
+    use std::io::{self, Write};
+    #[test]
+    fn enc_dec_key() {
+        let key = vec![0, 3, 4, 6, 123];
+        let prefix = "Shift";
+        let enc_key = super::enc_key(&key, prefix);
+        let (p, k) = super::dec_key(&enc_key, prefix);
+        println!("{:?}", String::from_utf8(p.to_vec()));
+    }
+    
+    /*    #[test]
+    fn db() {
+        let path = super::TempDir::new("/tmp/").unwrap();
+        let db = super::DBStore::new(&path.path());
+        db.put_with_prefix(b"hello", b"word", "L");
+        let value = db.get_with_prefix(b"hello", "L").unwrap();
+        writeln!(
+            io::stdout(),
+            "value => {:?}",
+            String::from_utf8(value).unwrap()
+        );
+    }
+    */
+}

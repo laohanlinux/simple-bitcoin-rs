@@ -17,8 +17,8 @@ lazy_static!{
     static ref MAX_NONCE: isize =  1<<60;
 }
 
-const TARGETBITS: usize = 16;
-// const TARGETBITS: usize = 4;
+// const TARGETBITS: usize = 16;
+const TARGETBITS: usize = 4;
 
 pub struct ProofOfWork<'a> {
     pub block: &'a Block,

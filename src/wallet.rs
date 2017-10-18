@@ -96,8 +96,8 @@ impl Wallet {
 }
 
 
-#[cfg(test)]
-mod tests {
+//#[cfg(test)]
+/*mod tests {
     use super::util;
     use super::Wallet;
 
@@ -115,4 +115,4 @@ mod tests {
         println!("addr {}", addr);
         assert!(Wallet::validate_address(addr));
     }
-}
+}*/

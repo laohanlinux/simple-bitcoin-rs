@@ -240,6 +240,7 @@ impl BlockChain {
     }
 
     pub fn iter(&self) -> IterBlockchain {
+        // println!("tip ===> {:?}", &self.tip.clone());
         let current_hash = &self.tip.take();
         self.tip.set(current_hash.clone());
         println!("current_hash {:?}", util::encode_hex(&current_hash));
