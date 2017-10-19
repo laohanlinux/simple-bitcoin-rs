@@ -162,6 +162,27 @@ pub fn get_balance(address: String, node: String) -> Result<(), String> {
     Ok(())
 }
 
+pub fn get_balances(wallet_store: String, node: String) -> Result<(), String> {
+    let wallets = Wallets::new_wallets(wallet_store.clone()).unwrap();
+    let address = wallets.list_address();
+    let block_chain = RefCell::new(BlockChain::new_blockchain(node.clone()));
+    let utxo = UTXOSet::new(block_chain.borrow());
+
+    address.into_iter().for_each(|addr| {
+        let mut balance = 0;
+        let pub_key_hash = util::decode_base58(addr.clone());
+        let pub_key_hash = &pub_key_hash[1..(pub_key_hash.len() - 4)];
+        let utxos = utxo.find_utxo(pub_key_hash);
+        info!(LOG, "pub_key_has {:?}", pub_key_hash);
+        for out in utxos {
+            balance += out.value;
+        }
+
+        info!(LOG, "Balance of {}: {}", addr, balance);
+    });
+    Ok(())
+}
+
 pub fn send(
     from: String,
     to: String,

@@ -108,10 +108,26 @@ pub fn write_file(path: &str, contents: &[u8]) -> Result<(), Error> {
     Ok(())
 }
 
+// pub fn compare_slice_u8(s1: &[u8], s2: &[u8]) -> bool {
+//     println!("compare: {:?}, {:?}", s1, s2);
+//     let cmp = |l: &[u8], r: &[u8]| l.len().cmp(&r.len());
+//     cmp.compare(s1, s2) == Equal
+// }
+
 pub fn compare_slice_u8(s1: &[u8], s2: &[u8]) -> bool {
-    println!("compare: {:?}, {:?}", s1, s2);
-    let cmp = |l: &[u8], r: &[u8]| l.len().cmp(&r.len());
-    cmp.compare(s1, s2) == Equal
+    if s1.len() != s2.len() {
+        return false;
+    }
+    let mut i = 0;
+    s1.iter().any(|iter| {
+        if s2[i] != *iter {
+            i+=1;
+            return false
+        } else {
+            i+=1;
+            return true
+        }
+    })
 }
 
 pub fn encode_base58(payload: &[u8]) -> String {
