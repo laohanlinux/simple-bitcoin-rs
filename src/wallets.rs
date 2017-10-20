@@ -58,10 +58,12 @@ impl Wallets {
     }
 
     pub fn serialize(wallets: &Wallets) -> Vec<u8> {
-        serde_json::to_string(wallets).unwrap().into_bytes()
+        // serde_json::to_string(wallets).unwrap().into_bytes()
+        serde_json::to_vec(wallets).unwrap()
     }
 
     pub fn deserialize(data: &Vec<u8>) -> Wallets {
-        serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
+        // serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
+        serde_json::from_slice(data).unwrap()
     }
 }

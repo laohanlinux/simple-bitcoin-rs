@@ -125,8 +125,13 @@ impl<'a> UTXOSet<'a> {
                 for vin in &tx.vin {
                     // store the unspend outputs
                     let mut update_outs = TXOutputs::new(vec![]);
-                    let out_bytes = db.get_with_prefix(&vin.txid, Self::UTXO_BLOCK_PREFIX)
-                        .unwrap();
+                    println!("当前的输入交易id为:{:?} - {:?}， 区块为:{:?}", &util::encode_hex(&vin.txid), &vin.vout , &util::encode_hex(&block.hash));
+                    let mut out_bytes = db.get_with_prefix(&vin.txid, Self::UTXO_BLOCK_PREFIX);
+                    // while out_bytes.is_none() {
+                    //     out_bytes = db.get_with_prefix(&vin.txid, Self::UTXO_BLOCK_PREFIX);
+                    //     println!("当前的输入交易id为:{:?}, {:?}", &util::encode_hex(&vin.txid), &vin.txid);
+                    // }
+                    let out_bytes = out_bytes.unwrap();
                     let outputs = TXOutputs::deserialize_outputs(&out_bytes);
                     for out_idx in (0..outputs.outputs.len()) {
                         if out_idx != vin.vout as usize {

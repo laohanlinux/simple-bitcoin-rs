@@ -19,7 +19,7 @@ lazy_static! {
     static ref GENESIS_COINBASE_DATA:&'static str = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
 }
 
-const DBFILE: &str = "{}/blockchain.db";
+pub const DBFILE: &str = "{}/blockchain.db";
 
 pub struct BlockChain {
     tip: Cell<Vec<u8>>,
@@ -33,7 +33,7 @@ impl BlockChain {
         let genesis_block = Block::new_genesis_block(cbtx);
 
         let mut db_opt = DBOptions::new().expect("error create options");
-        db_opt.set_error_if_exists(true).set_create_if_missing(true);
+        db_opt.set_error_if_exists(true).set_create_if_missing(true).set_paranoid_checks(true);
 
         let db_file = rt_format!(DBFILE, &node).unwrap();
         let db = DBStore::new(&db_file, db_opt);
@@ -55,7 +55,7 @@ impl BlockChain {
 
     pub fn new_blockchain(node: String) -> BlockChain {
         let mut db_opt = DBOptions::new().expect("error create options");
-        db_opt.set_create_if_missing(false);
+        db_opt.set_create_if_missing(false).set_paranoid_checks(true);
         let db_file = rt_format!(DBFILE, node).unwrap();
         let db = DBStore::new(&db_file, db_opt);
         let tip = db.get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
@@ -110,6 +110,7 @@ impl BlockChain {
         for block in block_iter {
             for transaction in &block.transactions {
                if util::compare_slice_u8(&transaction.id, id) {
+                    println!("找到聊一个交易 {:?}, 区块为:{:?}", util::encode_hex(&transaction.id), util::encode_hex(block.hash));
                     return Some(transaction.clone());
                } 
             }

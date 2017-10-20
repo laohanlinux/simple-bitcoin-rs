@@ -118,16 +118,23 @@ pub fn compare_slice_u8(s1: &[u8], s2: &[u8]) -> bool {
     if s1.len() != s2.len() {
         return false;
     }
-    let mut i = 0;
-    s1.iter().any(|iter| {
+   /*) let res = s1.iter().all(|iter| {
         if s2[i] != *iter {
-            i+=1;
             return false
-        } else {
-            i+=1;
-            return true
+        } 
+        i+=1;
+        return true;
+    });*/
+    let slice_len = s1.len();
+    let mut res = true;
+    for i in (0..slice_len) {
+        if s1[i] != s2[i] {
+            res = false;
+            break;
         }
-    })
+    } 
+    println!("比较结果为{}, {:?}, {:?}", res, s1, s2);
+    res
 }
 
 pub fn encode_base58(payload: &[u8]) -> String {

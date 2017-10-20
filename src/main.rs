@@ -153,6 +153,11 @@ fn main() {
                         .value_name("mine"),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("list_transactions")
+                .about("list all transactions")
+                .arg(Arg::with_name("store").long("store").default_value(STORE))
+        )
         .get_matches();
     if let Err(e) = run(matches) {
         error!(LOG, "{}", e);
@@ -187,6 +192,9 @@ fn run(matches: ArgMatches) -> Result<(), String> {
         }
         ("balances", Some(m)) =>{
             Ok(run_get_balances(m))
+        }
+        ("list_transactions", Some(m)) => {
+            Ok(run_list_transactions(m))
         }
         ("send", Some(m)) => {
             Ok(run_send(m))
@@ -273,4 +281,9 @@ fn run_send(matches: &ArgMatches) {
         Ok(_) => {}
         Err(e) => println!("{}", e), 
     }
+}
+
+fn run_list_transactions(matches: &ArgMatches) {
+     let store = matches.value_of("store").unwrap();
+     cli::list_transactions(store.to_owned()).unwrap();
 }

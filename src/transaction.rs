@@ -101,11 +101,13 @@ impl Transaction {
 
     // TODO add
     pub fn deserialize_transaction(data: &Vec<u8>) -> Transaction {
-        serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
+        // serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap() 
+        serde_json::from_slice(data).unwrap()
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        serde_json::to_string(self).unwrap().into_bytes()
+        // serde_json::to_string(self).unwrap().into_bytes()
+        serde_json::to_vec(self).unwrap()
     }
     // IsCoinbase checks whether the transaction is coinbase
     pub fn is_coinbase(&self) -> bool {
@@ -129,6 +131,13 @@ impl Transaction {
 
         // check input wether reference some pre block output
         for tx_input in self.vin.iter() {
+            println!("prev_tx {:?}", &hex::encode(&tx_input.txid));
+            {
+                for kv in prev_txs {
+                    println!("{}", &kv.0);
+
+                }
+            }
             if prev_txs.get(&hex::encode(&tx_input.txid)).is_none() {
                 panic!("ERROR: Previous transaction is not correct");
             }
@@ -343,11 +352,13 @@ impl TXOutputs {
     }
     // TODO
     pub fn serialize(txo: &TXOutputs) -> Vec<u8> {
-        serde_json::to_string(txo).unwrap().into_bytes()
+        // serde_json::to_string(txo).unwrap().into_bytes()
+        serde_json::to_vec(txo).unwrap()
     }
 
     // TODO
     pub fn deserialize_outputs(data: &Vec<u8>) -> TXOutputs {
-        serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
+        serde_json::from_slice(data).unwrap()
+        // serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
     }
 }

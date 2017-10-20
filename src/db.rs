@@ -20,10 +20,12 @@ impl DBStore {
     }
 
     pub fn get_with_prefix(&self, key: &[u8], prefix: &str) -> Option<Vec<u8>> {
+        let mut read_opt = DBReadOptions::new().unwrap();
+        read_opt.set_fill_cache(false);
         let enc_key = enc_key(key, prefix);
         let db_clone = self.db.clone();
         let db = db_clone.lock().unwrap();
-        match db.get(&enc_key) {
+        match db.get_opts(&enc_key, read_opt) {
             Ok(v) => v,
             Err(e) => {
                 let str = format!("{:?}", e);
@@ -33,11 +35,13 @@ impl DBStore {
     }
 
     pub fn put_with_prefix(&self, key: &[u8], value: &[u8], prefix: &str) {
+        let mut write_opt = DBWriteOptions::new().unwrap();
+        write_opt.set_sync(true);
         let enc_key = enc_key(key, prefix);
         let db_clone = self.db.clone();
         let mut db = db_clone.lock().unwrap();
         println!("put key {:?}, prefix:{}", &enc_key, prefix);
-        db.put(&enc_key, value).unwrap();
+        db.put_opts(&enc_key, value, write_opt).unwrap();
     }
 
     // return value not included prefix
@@ -64,10 +68,12 @@ impl DBStore {
     }
 
     pub fn delete(&self, key: &[u8], prefix: &str) {
+        let mut write_opt = DBWriteOptions::new().unwrap();
+        write_opt.set_sync(true);
         let enc_key = enc_key(key, prefix);
         let db_clone = self.db.clone();
         let mut db = db_clone.lock().unwrap();
-        db.delete(&enc_key).unwrap();
+        db.delete_opts(&enc_key, write_opt).unwrap();
     }
 }
 

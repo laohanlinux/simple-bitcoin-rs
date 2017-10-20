@@ -21,6 +21,9 @@ case $1 in
     "reindex")
         cargo build && RUST_BACKTRACE=1 ./target/debug/bitcoin reindex 
     ;;
+    "ts" )
+        cargo build && RUST_BACKTRACE=1 ./target/debug/bitcoin list_transactions
+        ;;
 
     "send")
         cargo build && RUST_BACKTRACE=1 ./target/debug/bitcoin send --mine=true --amount=1 --from="17tQE4NbkiTroRwCeqEQF4Y9yVFBGLpL59" --to="13vAhPZuRq2tsMb8t53DC3a6EcyD8GXahd" 

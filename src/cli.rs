@@ -1,10 +1,12 @@
 extern crate slog;
 extern crate slog_term;
 extern crate prettytable;
+extern crate leveldb_rs;
 
 use self::prettytable::Table;
 use self::prettytable::row::Row;
 use self::prettytable::cell::Cell;
+use self::leveldb_rs::*;
 
 use super::util;
 use super::log::*;
@@ -14,6 +16,7 @@ use super::blockchain::BlockChain;
 use super::utxo_set::UTXOSet;
 use super::proof_of_work::ProofOfWork;
 use super::transaction;
+use super::db::DBStore;
 
 use std::fs;
 use std::cell::{Ref, RefCell};
@@ -182,6 +185,28 @@ pub fn get_balances(wallet_store: String, node: String) -> Result<(), String> {
     });
     Ok(())
 }
+
+pub fn list_transactions(node: String) -> Result<(), String> {
+    let block_chain = BlockChain::new_blockchain(node.clone());
+    let block_iter = block_chain.iter();
+        for block in block_iter {
+            for transaction in &block.transactions {
+            println!("交易 {:?}, 区块为:{:?}", util::encode_hex(&transaction.id), util::encode_hex(&block.hash));
+                    
+            }
+        }
+    Ok(())
+}
+
+// pub fn list_transaction(txid: String, node:String) -> Result<(), String> {
+//      let mut db_opt = DBOptions::new().expect("error create options");
+//         db_opt.set_create_if_missing(false).set_paranoid_checks(true);
+//         let db_file = rt_format!("{}/blockchain.db", node).unwrap();
+//         let db = DBStore::new(&db_file, db_opt);
+//         let tip = db.get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
+//             .unwrap();
+//             Ok(())
+// }
 
 pub fn send(
     from: String,
