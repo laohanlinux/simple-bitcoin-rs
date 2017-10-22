@@ -22,6 +22,7 @@ impl<'a> UTXOSet<'a> {
         UTXOSet { blockchain: blockchain }
     }
 
+    // HashMap =>  [txid, Vec![out'idx1, out'idx2]]
     pub fn find_spend_able_outputs(
         &self,
         pubkey_hash: &[u8],
@@ -34,24 +35,29 @@ impl<'a> UTXOSet<'a> {
         let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
         for kv in &kvs {
             let txid = util::encode_hex(&kv.0);
-            println!("find_spend_able_outputs txid: {:?}", &kv.0);
+            warn!(LOG, "序列化的交易id: {:?}", &txid);
             let outs = TXOutputs::deserialize_outputs(&kv.1);
-            let mut idx = 0;
-            for out in &*outs.outputs {
+            for (out_idx, out) in &*outs.outputs {
                 if out.is_locked_with_key(pubkey_hash) && accumulated < amout {
+                    debug!(
+                        LOG,
+                        "解锁:{:?} - 交易:{:?} - 索引:{:?} - 可用资产: {:?}",
+                        util::encode_hex(pubkey_hash),
+                        &txid,
+                        out_idx,
+                        out.value
+                    );
                     accumulated += out.value;
-                    let new_value = {
-                        let value = unspent_outs.get_mut(&txid.clone());
-                        value.map_or(vec![idx], |v| {
-                            v.push(idx);
-                            v.to_vec()
-                        })
-                    };
-                    unspent_outs.insert(txid.clone(), new_value);
+                    unspent_outs.entry(txid.clone()).or_insert(vec![]).push(
+                        *out_idx,
+                    );
                 }
-                idx += 1;
             }
         }
+        for (k, v) in &unspent_outs {
+            debug!(LOG, "校验数据, 交易{:?}, 索引: {:?}", k, v);
+        }
+
         (accumulated, unspent_outs)
     }
 
@@ -64,15 +70,26 @@ impl<'a> UTXOSet<'a> {
             warn!(LOG, "no utxo in blockchain({})", Self::UTXO_BLOCK_PREFIX);
         }
         for kv in &kvs {
+            warn!(
+                LOG,
+                "find_utxo 序列化的交易id {:?}",
+                util::encode_hex(&kv.0)
+            );
             let outs = TXOutputs::deserialize_outputs(&kv.1);
-            for out in &*outs.outputs {
-                info!(LOG, "{:?}", out);
-                info!(LOG, "{:?}, {:?}", &pubkey_hash, &out.pub_key_hash);
+            for (out_idx, out) in &*outs.outputs {
                 if !out.is_locked_with_key(pubkey_hash) {
-                    info!(LOG, "跳过");
+                    info!(
+                        LOG,
+                        "skip the pubkey_hash: {:?}",
+                        util::encode_hex(&pubkey_hash)
+                    );
                     continue;
                 }
-                info!(LOG, "Find a utxo {:?}", &pubkey_hash);
+                info!(
+                    LOG,
+                    "Find a utxo =============> {:?}",
+                    util::encode_hex(&pubkey_hash)
+                );
                 utxos.push(out.clone());
             }
         }
@@ -93,12 +110,7 @@ impl<'a> UTXOSet<'a> {
         }
         for kv in &kvs {
             db.delete(&kv.0, Self::UTXO_BLOCK_PREFIX);
-            warn!(
-                LOG,
-                "delete key {:?}, {:?}",
-                kv.0,
-                &kv.1
-            );
+            warn!(LOG, "delete key {:?}, {:?}", kv.0, &kv.1);
         }
 
         let utxos = self.blockchain.find_utxo();
@@ -124,8 +136,13 @@ impl<'a> UTXOSet<'a> {
             if !tx.is_coinbase() {
                 for vin in &tx.vin {
                     // store the unspend outputs
-                    let mut update_outs = TXOutputs::new(vec![]);
-                    println!("当前的输入交易id为:{:?} - {:?}， 区块为:{:?}", &util::encode_hex(&vin.txid), &vin.vout , &util::encode_hex(&block.hash));
+                    let mut update_outs = TXOutputs::new(HashMap::new());
+                    println!(
+                        "当前的输入交易id为:{:?} - {:?}， 区块为:{:?}",
+                        &util::encode_hex(&vin.txid),
+                        &vin.vout,
+                        &util::encode_hex(&block.hash)
+                    );
                     let mut out_bytes = db.get_with_prefix(&vin.txid, Self::UTXO_BLOCK_PREFIX);
                     // while out_bytes.is_none() {
                     //     out_bytes = db.get_with_prefix(&vin.txid, Self::UTXO_BLOCK_PREFIX);
@@ -133,10 +150,10 @@ impl<'a> UTXOSet<'a> {
                     // }
                     let out_bytes = out_bytes.unwrap();
                     let outputs = TXOutputs::deserialize_outputs(&out_bytes);
-                    for out_idx in (0..outputs.outputs.len()) {
-                        if out_idx != vin.vout as usize {
-                            let out = outputs.outputs[out_idx].clone();
-                            update_outs.outputs.push(out);
+
+                    for (out_idx, out) in &*outputs.outputs {
+                        if *out_idx != vin.vout {
+                            update_outs.outputs.insert(*out_idx, out.clone());
                         }
                     }
                     if update_outs.outputs.len() == 0 {
@@ -153,9 +170,11 @@ impl<'a> UTXOSet<'a> {
                 }
             }
 
-            let mut new_outputs = TXOutputs::new(vec![]);
-            for out in &tx.vout {
-                new_outputs.outputs.push(out.clone());
+            let mut new_outputs = TXOutputs::new(HashMap::new());
+            let mut out_idx = 0;
+            for out in &*tx.vout {
+                new_outputs.outputs.insert(out_idx, out.clone());
+                out_idx += 1;
             }
             db.put_with_prefix(
                 &tx.id,

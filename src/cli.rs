@@ -55,7 +55,7 @@ pub fn open_wallet(node: String) {
     );
     let address = wallets.list_address();
     address.into_iter().fold(0, |acc, addr| {
-        let addr_vec =util::decode_base58(addr.clone());
+        let addr_vec = util::decode_base58(addr.clone());
         info!(LOG, "地址[{:?}]=> {:?}, {:?}", acc, addr, addr_vec);
         acc + 1
     });
@@ -121,7 +121,7 @@ pub fn print_chain(node: String) -> Result<(), String> {
             in_table.printstd();
             println!("Outputs");
             out_table.printstd();
-            *tx_number.borrow_mut() +=1;
+            *tx_number.borrow_mut() += 1;
         });
         if block.prev_block_hash.len() == 0 {
             break;
@@ -142,6 +142,19 @@ pub fn reindex_utxo(node: String) -> Result<(), String> {
         count
     );
     println!("Done! There are {} transactions in the utxo set.", count);
+    Ok(())
+}
+
+pub fn get_utxo(txid: String, node: String) -> Result<(), String> {
+    let block_chain = BlockChain::new_blockchain(node);
+    let db = block_chain.db.borrow();
+    let utxos = db.get_all_with_prefix("utxo-");
+    for kv in &utxos {
+        let k_txid = util::encode_hex(&kv.0);
+        if k_txid == txid {
+            println!("{:?}", String::from_utf8_lossy(&kv.1));
+        }
+    }
     Ok(())
 }
 
@@ -189,24 +202,19 @@ pub fn get_balances(wallet_store: String, node: String) -> Result<(), String> {
 pub fn list_transactions(node: String) -> Result<(), String> {
     let block_chain = BlockChain::new_blockchain(node.clone());
     let block_iter = block_chain.iter();
-        for block in block_iter {
-            for transaction in &block.transactions {
-            println!("交易 {:?}, 区块为:{:?}", util::encode_hex(&transaction.id), util::encode_hex(&block.hash));
-                    
-            }
+    for block in block_iter {
+        for transaction in &block.transactions {
+            println!(
+                "交易 {:?}, 区块为:{:?}",
+                util::encode_hex(&transaction.id),
+                util::encode_hex(&block.hash)
+            );
+
         }
+    }
     Ok(())
 }
 
-// pub fn list_transaction(txid: String, node:String) -> Result<(), String> {
-//      let mut db_opt = DBOptions::new().expect("error create options");
-//         db_opt.set_create_if_missing(false).set_paranoid_checks(true);
-//         let db_file = rt_format!("{}/blockchain.db", node).unwrap();
-//         let db = DBStore::new(&db_file, db_opt);
-//         let tip = db.get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
-//             .unwrap();
-//             Ok(())
-// }
 
 pub fn send(
     from: String,
@@ -229,7 +237,22 @@ pub fn send(
         let from_wallet = wallets.get_wallet(from.clone()).unwrap();
         transaction::Transaction::new_utxo_transaction(&from_wallet, to.clone(), amount, &utxo)?
     };
-    info!(LOG,  "result: {:?}", result.id); 
+    info!(LOG, "result: {:?}", result.id);
+    {
+        let (txid, in_rows, out_rows) = result.to_string();
+        let mut in_table = Table::new();
+        let mut out_table = Table::new();
+        in_rows.into_iter().for_each(
+            |row| { in_table.add_row(row); },
+        );
+        out_rows.into_iter().for_each(
+            |row| { out_table.add_row(row); },
+        );
+        println!("Inputs");
+        in_table.printstd();
+        println!("Outputs");
+        out_table.printstd();
+    }
     let new_block = if mine_now {
         let cbtx = transaction::Transaction::new_coinbase_tx(from.clone(), "".to_owned());
         let txs = vec![cbtx, result];
@@ -239,8 +262,8 @@ pub fn send(
         None
     };
     if new_block.is_none() {
-        return Ok(());
-    } 
+        return Err("ERROR: generate block fail".to_owned());
+    }
     utxo.update(&new_block.unwrap());
     info!(LOG, "{:?} send {} to {:?}", from, amount, to);
     Ok(())

@@ -8,6 +8,8 @@ extern crate bigint;
 extern crate secp256k1;
 extern crate rand;
 extern crate prettytable;
+extern crate slog;
+extern crate slog_term;
 
 use self::sha2::{Sha256, Digest};
 use self::secp256k1::Message;
@@ -17,6 +19,7 @@ use self::prettytable::row::Row;
 use self::prettytable::cell::Cell;
 
 use super::util;
+use super::log::*;
 use super::wallet::{Wallet, ADDRESS_CHECKSUM_LEN};
 use std::collections::HashMap;
 use super::utxo_set::UTXOSet;
@@ -26,8 +29,8 @@ const SUBSIDY: isize = 10;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Transaction {
     pub id: Vec<u8>,
-    pub vin: Vec<TXInput>,
-    pub vout: Vec<TXOutput>,
+    pub vin: Vec<TXInput>, // 索引为vec的索引
+    pub vout: Vec<TXOutput>, // 索引为vec的索引
 }
 
 impl Transaction {
@@ -67,11 +70,13 @@ impl Transaction {
         if acc < amount {
             return Err("ERROR: Not enough founds".to_owned());
         }
-
+        println!("================================================");
+        debug!(LOG, "找到的可被消费的输出为:");
         // Build a list of inputs
         for kv in &valid_outputs {
             let txid = util::decode_hex(&kv.0);
             for out in kv.1 {
+                debug!(LOG, "交易的ID {:?}, 交易的索引{:?} ", &kv.0, out);
                 let input = TXInput::new(txid.clone(), *out, vec![], pub_key.clone());
                 inputs.push(input);
             }
@@ -81,8 +86,6 @@ impl Transaction {
         if acc > amount {
             outputs.push(TXOutput::new(acc - amount, wallet.get_address()));
         }
-        println!("inputs size: {}", inputs.len());
-        println!("output size: {}", outputs.len());
 
         let mut tx = Transaction {
             id: vec![],
@@ -91,17 +94,22 @@ impl Transaction {
         };
         let txid = tx.hash();
         tx.id = txid;
-        println!("txid: {:?}", &tx.id);
+        debug!(
+            LOG,
+            "此次生产的交易id {:?}",
+            util::encode_hex(&tx.id)
+        );
         utxoset.blockchain.sign_transaction(
             &mut tx,
             &wallet.secret_key,
         );
+        println!("================================================");
         Ok(tx)
     }
 
     // TODO add
     pub fn deserialize_transaction(data: &Vec<u8>) -> Transaction {
-        // serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap() 
+        // serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
         serde_json::from_slice(data).unwrap()
     }
 
@@ -131,13 +139,6 @@ impl Transaction {
 
         // check input wether reference some pre block output
         for tx_input in self.vin.iter() {
-            println!("prev_tx {:?}", &hex::encode(&tx_input.txid));
-            {
-                for kv in prev_txs {
-                    println!("{}", &kv.0);
-
-                }
-            }
             if prev_txs.get(&hex::encode(&tx_input.txid)).is_none() {
                 panic!("ERROR: Previous transaction is not correct");
             }
@@ -343,22 +344,21 @@ impl TXOutput {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TXOutputs {
-    pub outputs: Box<Vec<TXOutput>>,
+    pub outputs: Box<HashMap<isize, TXOutput>>,
 }
 
 impl TXOutputs {
-    pub fn new(outputs: Vec<TXOutput>) -> TXOutputs {
+    pub fn new(outputs: HashMap<isize, TXOutput>) -> TXOutputs {
         TXOutputs { outputs: Box::new(outputs) }
     }
     // TODO
     pub fn serialize(txo: &TXOutputs) -> Vec<u8> {
-        // serde_json::to_string(txo).unwrap().into_bytes()
         serde_json::to_vec(txo).unwrap()
     }
 
     // TODO
     pub fn deserialize_outputs(data: &Vec<u8>) -> TXOutputs {
+        println!("deserialize=> {:?}", String::from_utf8_lossy(data));
         serde_json::from_slice(data).unwrap()
-        // serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
     }
 }

@@ -42,7 +42,7 @@ impl Block {
     }
 
     pub fn serialize(block: &Block) -> Vec<u8> {
-        // serde_json::to_string(block).unwrap().into_bytes() 
+        // serde_json::to_string(block).unwrap().into_bytes()
         serde_json::to_vec(block).unwrap()
     }
 
@@ -55,6 +55,7 @@ impl Block {
         let block: Block = Block::new(vec![coinbase], vec![], 0);
         block
     }
+
 
     pub fn hash_transactions(&self) -> Vec<u8> {
         let mut transaction = vec![];

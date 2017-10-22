@@ -130,8 +130,18 @@ fn main() {
         .subcommand(
             SubCommand::with_name("balances")
                 .about("get accout's balances")
-                .arg(Arg::with_name("wallet_store").long("wallet_store").default_value("default_wallet.json"))
-                .arg(Arg::with_name("store").long("store").default_value(STORE))
+                .arg(
+                    Arg::with_name("wallet_store")
+                        .long("wallet_store")
+                        .default_value("default_wallet.json"),
+                )
+                .arg(Arg::with_name("store").long("store").default_value(STORE)),
+        )
+        .subcommand(
+            SubCommand::with_name("utxo")
+                .about("get transaction utxo")
+                .arg(Arg::with_name("txid").long("txid").value_name("txid"))
+                .arg(Arg::with_name("store").long("store").default_value(STORE)),
         )
         .subcommand(
             SubCommand::with_name("send")
@@ -156,7 +166,7 @@ fn main() {
         .subcommand(
             SubCommand::with_name("list_transactions")
                 .about("list all transactions")
-                .arg(Arg::with_name("store").long("store").default_value(STORE))
+                .arg(Arg::with_name("store").long("store").default_value(STORE)),
         )
         .get_matches();
     if let Err(e) = run(matches) {
@@ -171,34 +181,19 @@ fn run(matches: ArgMatches) -> Result<(), String> {
             info!(LOG, "wallet store {:?}", config);
             Ok(run_new(m, config))
         }
-        ("add_wallet", Some(m)) => {
-            Ok(run_add_wallet(m, config))
-        }
+        ("add_wallet", Some(m)) => Ok(run_add_wallet(m, config)),
         ("open", Some(m)) => {
             info!(LOG, "wallet store {:?}", config);
             Ok(run_open(m, config))
         }
-        ("create_blockchain", Some(m)) => {
-            Ok(run_create_blockchain(m))
-        }
-        ("print", Some(m)) => {
-            Ok(run_print(m))
-        }
-        ("reindex", Some(m)) => {
-            Ok(run_reindex(m))
-        }
-        ("balance", Some(m)) => {
-            Ok(run_get_balance(m))
-        }
-        ("balances", Some(m)) =>{
-            Ok(run_get_balances(m))
-        }
-        ("list_transactions", Some(m)) => {
-            Ok(run_list_transactions(m))
-        }
-        ("send", Some(m)) => {
-            Ok(run_send(m))
-        }
+        ("create_blockchain", Some(m)) => Ok(run_create_blockchain(m)),
+        ("print", Some(m)) => Ok(run_print(m)),
+        ("reindex", Some(m)) => Ok(run_reindex(m)),
+        ("balance", Some(m)) => Ok(run_get_balance(m)),
+        ("balances", Some(m)) => Ok(run_get_balances(m)),
+        ("utxo", Some(m)) => Ok(run_get_utxo(m)),
+        ("list_transactions", Some(m)) => Ok(run_list_transactions(m)),
+        ("send", Some(m)) => Ok(run_send(m)),
         _ => Ok(()),
     }
 }
@@ -283,7 +278,13 @@ fn run_send(matches: &ArgMatches) {
     }
 }
 
+fn run_get_utxo(matches: &ArgMatches) {
+    let store = matches.value_of("store").unwrap();
+    let txid = matches.value_of("txid").unwrap();
+    cli::get_utxo(txid.to_owned(), store.to_owned());
+}
+
 fn run_list_transactions(matches: &ArgMatches) {
-     let store = matches.value_of("store").unwrap();
-     cli::list_transactions(store.to_owned()).unwrap();
+    let store = matches.value_of("store").unwrap();
+    cli::list_transactions(store.to_owned()).unwrap();
 }

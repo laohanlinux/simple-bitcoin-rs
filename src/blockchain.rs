@@ -33,7 +33,10 @@ impl BlockChain {
         let genesis_block = Block::new_genesis_block(cbtx);
 
         let mut db_opt = DBOptions::new().expect("error create options");
-        db_opt.set_error_if_exists(true).set_create_if_missing(true).set_paranoid_checks(true);
+        db_opt
+            .set_error_if_exists(true)
+            .set_create_if_missing(true)
+            .set_paranoid_checks(true);
 
         let db_file = rt_format!(DBFILE, &node).unwrap();
         let db = DBStore::new(&db_file, db_opt);
@@ -41,7 +44,6 @@ impl BlockChain {
         // store genesis_block into db
         let value = Block::serialize(&genesis_block);
         let key = genesis_block.hash;
-        println!("genesis_block hash {:?}", &key);
         db.put_with_prefix(&key, &value, *BLOCK_PREFIX);
 
         // store last block hash into db
@@ -55,7 +57,9 @@ impl BlockChain {
 
     pub fn new_blockchain(node: String) -> BlockChain {
         let mut db_opt = DBOptions::new().expect("error create options");
-        db_opt.set_create_if_missing(false).set_paranoid_checks(true);
+        db_opt.set_create_if_missing(false).set_paranoid_checks(
+            true,
+        );
         let db_file = rt_format!(DBFILE, node).unwrap();
         let db = DBStore::new(&db_file, db_opt);
         let tip = db.get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
@@ -109,10 +113,9 @@ impl BlockChain {
         let block_iter = self.iter();
         for block in block_iter {
             for transaction in &block.transactions {
-               if util::compare_slice_u8(&transaction.id, id) {
-                    println!("找到聊一个交易 {:?}, 区块为:{:?}", util::encode_hex(&transaction.id), util::encode_hex(block.hash));
+                if util::compare_slice_u8(&transaction.id, id) {
                     return Some(transaction.clone());
-               } 
+                }
             }
         }
         None
@@ -128,7 +131,6 @@ impl BlockChain {
         let mut spent_txos: HashMap<String, Vec<isize>> = HashMap::new();
         let block_iter = self.iter();
         for block in block_iter {
-            println!("==> {:?}", &block);
             for transaction in &block.transactions {
                 let txid = &util::encode_hex(&transaction.id);
                 let mut out_idx = 0;
@@ -145,16 +147,11 @@ impl BlockChain {
                         }
                     }
                     // Was the output spent
-
                     if !find {
-                        let mut tmp_value = vec![];
-                        if let Some(x) = utxo.get_mut(&txid.clone()) {
-                            x.outputs.push(vout.clone());
-                            tmp_value = *x.outputs.clone();
-                        } else {
-                            tmp_value = vec![vout.clone()];
-                        }
-                        utxo.insert(txid.clone(), TXOutputs { outputs: Box::new(tmp_value) });
+                        utxo.entry(txid.clone())
+                            .or_insert(TXOutputs { outputs: Box::new(HashMap::new()) })
+                            .outputs
+                            .insert(out_idx, vout.clone());
                     }
                     out_idx += 1;
                 }
@@ -163,14 +160,7 @@ impl BlockChain {
                 if !transaction.is_coinbase() {
                     for input in &transaction.vin {
                         let in_txid = util::encode_hex(&input.txid);
-                        let new_value = {
-                            let value = spent_txos.get_mut(&in_txid);
-                            value.map_or(vec![input.vout], |v| {
-                                v.push(input.vout);
-                                v.to_vec()
-                            })
-                        };
-                        spent_txos.insert(in_txid, new_value);
+                        spent_txos.entry(in_txid).or_insert(vec![]).push(input.vout);
                     }
                 }
             }
@@ -241,24 +231,20 @@ impl BlockChain {
     }
 
     pub fn iter(&self) -> IterBlockchain {
-        // println!("tip ===> {:?}", &self.tip.clone());
         let current_hash = &self.tip.take();
         self.tip.set(current_hash.clone());
-        println!("current_hash {:?}", util::encode_hex(&current_hash));
         let current_block_data = self.db
             .borrow()
             .get_with_prefix(current_hash, *BLOCK_PREFIX)
             .unwrap();
         let current_block = Block::deserialize_block(&current_block_data);
         let db = self.db.borrow().clone();
-        println!("current_block: {:?}", current_block);
         IterBlockchain::new(db, current_block)
     }
 
     pub fn sign_transaction(&self, tx: &mut Transaction, secret_key: &SecretKey) {
         let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
         for vin in &tx.vin {
-            println!("sign_transaction vin transaction id {:?}", &vin.txid);
             let prev_tx = self.find_transaction(&vin.txid).unwrap();
             prev_txs.insert(util::encode_hex(&prev_tx.id), prev_tx);
         }
@@ -305,7 +291,7 @@ impl Iterator for IterBlockchain {
         let prev_block_data = self.db.get_with_prefix(
             &current_block.prev_block_hash,
             *BLOCK_PREFIX,
-            );
+        );
         if prev_block_data.is_some() {
             let prev_block_data = prev_block_data.unwrap();
             let prev_block = Block::deserialize_block(&prev_block_data);
