@@ -144,6 +144,11 @@ fn main() {
                 .arg(Arg::with_name("store").long("store").default_value(STORE)),
         )
         .subcommand(
+            SubCommand::with_name("utxos")
+                .about("get transaction utxos")
+                .arg(Arg::with_name("store").long("store").default_value(STORE)),
+        )
+        .subcommand(
             SubCommand::with_name("send")
                 .about("send money...")
                 .arg(Arg::with_name("store").long("store").default_value(STORE))
@@ -192,6 +197,7 @@ fn run(matches: ArgMatches) -> Result<(), String> {
         ("balance", Some(m)) => Ok(run_get_balance(m)),
         ("balances", Some(m)) => Ok(run_get_balances(m)),
         ("utxo", Some(m)) => Ok(run_get_utxo(m)),
+        ("utxos", Some(m)) => Ok(run_get_utxos(m)),
         ("list_transactions", Some(m)) => Ok(run_list_transactions(m)),
         ("send", Some(m)) => Ok(run_send(m)),
         _ => Ok(()),
@@ -282,6 +288,11 @@ fn run_get_utxo(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
     let txid = matches.value_of("txid").unwrap();
     cli::get_utxo(txid.to_owned(), store.to_owned());
+}
+
+fn run_get_utxos(matches: &ArgMatches) {
+    let store = matches.value_of("store").unwrap();
+    cli::get_utxos(store.to_owned());
 }
 
 fn run_list_transactions(matches: &ArgMatches) {

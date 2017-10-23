@@ -362,3 +362,34 @@ impl TXOutputs {
         serde_json::from_slice(data).unwrap()
     }
 }
+
+
+#[cfg(test)]
+
+mod tests {
+    use std::collections::HashMap;
+    const addr: &str = "17tQE4NbkiTroRwCeqEQF4Y9yVFBGLpL59";
+    #[test]
+    fn coinbase_trasaction() {
+        let value = 1000;
+        let coin_base = super::TXOutput::new(value, addr.to_owned());
+        let out_idx = 0;
+        let mut outputs = HashMap::new();
+        outputs.insert(out_idx, coin_base);
+        let outputs = super::TXOutputs::new(outputs);
+        
+        // deserialize, serialize 
+        {
+            let ser = super::TXOutputs::serialize(&outputs);
+            let expect_outputs = super::TXOutputs::deserialize_outputs(&ser);
+            assert_eq!(expect_outputs.outputs.len(), outputs.outputs.len());
+            // assert_eq!(expect_outputs.outputs.entry(, );
+        }
+    }
+
+
+    #[test]
+    fn txoutputs() {
+
+    }
+}

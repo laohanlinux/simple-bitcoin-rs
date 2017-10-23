@@ -40,6 +40,7 @@ impl DBStore {
         let enc_key = enc_key(key, prefix);
         let db_clone = self.db.clone();
         let mut db = db_clone.lock().unwrap();
+        println!("db 增加新的数据=> {}", util::encode_hex(&enc_key));
         db.put_opts(&enc_key, value, write_opt).unwrap();
     }
 
@@ -70,6 +71,7 @@ impl DBStore {
         let enc_key = enc_key(key, prefix);
         let db_clone = self.db.clone();
         let mut db = db_clone.lock().unwrap();
+        println!("db 删除数据=> {}", util::encode_hex(&enc_key));
         db.delete_opts(&enc_key, write_opt).unwrap();
     }
 }
@@ -90,6 +92,7 @@ mod tests {
     extern crate tempdir;
     use self::tempdir::TempDir;
     use std::io::{self, Write};
+    use blockchain::leveldb_rs::DBOptions;
     #[test]
     fn enc_dec_key() {
         let key = vec![0, 3, 4, 6, 123];
@@ -97,6 +100,12 @@ mod tests {
         let enc_key = super::enc_key(&key, prefix);
         let (p, k) = super::dec_key(&enc_key, prefix);
         println!("{:?}", String::from_utf8(p.to_vec()));
+    }
+
+    #[test]
+    fn db() {
+        let path = "/tmp/block_chain/blockchain.db/";
+        let db = super::DBStore::new(path, DBOptions::new());
     }
 
     /*    #[test]

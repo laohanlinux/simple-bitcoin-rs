@@ -118,16 +118,9 @@ pub fn compare_slice_u8(s1: &[u8], s2: &[u8]) -> bool {
     if s1.len() != s2.len() {
         return false;
     }
-    /*) let res = s1.iter().all(|iter| {
-        if s2[i] != *iter {
-            return false
-        } 
-        i+=1;
-        return true;
-    });*/
     let slice_len = s1.len();
     let mut res = true;
-    for i in (0..slice_len) {
+    for i in 0..slice_len {
         if s1[i] != s2[i] {
             res = false;
             break;

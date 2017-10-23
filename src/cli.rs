@@ -158,6 +158,17 @@ pub fn get_utxo(txid: String, node: String) -> Result<(), String> {
     Ok(())
 }
 
+pub fn get_utxos(node: String) ->Result<(), String>{
+    let block_chain = BlockChain::new_blockchain(node);
+    let db = block_chain.db.borrow();
+    let utxos = db.get_all_with_prefix("utxo-");
+    for kv in &utxos {
+        let k_txid = util::encode_hex(&kv.0);
+        println!("{:?} {:?}", k_txid, String::from_utf8_lossy(&kv.1));
+    }
+    Ok(())
+}
+
 pub fn get_balance(address: String, node: String) -> Result<(), String> {
     if !Wallet::validate_address(address.clone()) {
         return Err("ERROR: Address is not valid".to_owned());

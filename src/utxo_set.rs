@@ -143,12 +143,8 @@ impl<'a> UTXOSet<'a> {
                         &vin.vout,
                         &util::encode_hex(&block.hash)
                     );
-                    let mut out_bytes = db.get_with_prefix(&vin.txid, Self::UTXO_BLOCK_PREFIX);
-                    // while out_bytes.is_none() {
-                    //     out_bytes = db.get_with_prefix(&vin.txid, Self::UTXO_BLOCK_PREFIX);
-                    //     println!("当前的输入交易id为:{:?}, {:?}", &util::encode_hex(&vin.txid), &vin.txid);
-                    // }
-                    let out_bytes = out_bytes.unwrap();
+                    let out_bytes = db.get_with_prefix(&vin.txid, Self::UTXO_BLOCK_PREFIX)
+                        .unwrap();
                     let outputs = TXOutputs::deserialize_outputs(&out_bytes);
 
                     for (out_idx, out) in &*outputs.outputs {
@@ -158,9 +154,11 @@ impl<'a> UTXOSet<'a> {
                     }
                     if update_outs.outputs.len() == 0 {
                         // the txid's outputs all spend, delete it from db
+                        debug!(LOG, "删除旧的utxo {}", util::encode_hex(&vin.txid));
                         db.delete(&vin.txid, Self::UTXO_BLOCK_PREFIX);
                     } else {
                         // update the outputs
+                        debug!(LOG, "更新utxo {}", util::encode_hex(&vin.txid));
                         db.put_with_prefix(
                             &vin.txid,
                             &TXOutputs::serialize(&update_outs),
@@ -176,6 +174,7 @@ impl<'a> UTXOSet<'a> {
                 new_outputs.outputs.insert(out_idx, out.clone());
                 out_idx += 1;
             }
+            debug!(LOG, "增加新的UTXO {}", util::encode_hex(&tx.id));
             db.put_with_prefix(
                 &tx.id,
                 &TXOutputs::serialize(&new_outputs),
