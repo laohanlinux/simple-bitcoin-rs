@@ -30,8 +30,7 @@ slog-async = "*"
 shio = "0.2.0"
 clap = "2.6.1"
 prettytable-rs = "*"
-lmdb-rs = "*"
-
+rocksdb = "0.8.1"
 
 [[bin]]
 path = "src/main.rs"

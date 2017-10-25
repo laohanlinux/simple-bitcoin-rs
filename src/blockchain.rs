@@ -8,6 +8,7 @@ use super::block::*;
 use super::transaction::*;
 use super::db::DBStore;
 use super::util;
+use super::utxo_set;
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -39,7 +40,13 @@ impl BlockChain {
             .set_paranoid_checks(true);
 
         let db_file = rt_format!(DBFILE, &node).unwrap();
-        let db = DBStore::new(&db_file, db_opt);
+        let mut prefixs = Vec::<String>::new();
+        {
+            prefixs.push((*LAST_BLOCK_HASH_PREFIX).to_string());
+            prefixs.push((*BLOCK_PREFIX).to_string());
+            prefixs.push(utxo_set::UTXO_BLOCK_PREFIX.to_string());
+        }
+        let db = DBStore::new(&db_file, prefixs);
 
         // store genesis_block into db
         let value = Block::serialize(&genesis_block);
@@ -61,7 +68,14 @@ impl BlockChain {
             true,
         );
         let db_file = rt_format!(DBFILE, node).unwrap();
-        let db = DBStore::new(&db_file, db_opt);
+        let mut prefixs = Vec::<String>::new();
+        {
+            prefixs.push((*LAST_BLOCK_HASH_PREFIX).to_string());
+            prefixs.push((*BLOCK_PREFIX).to_string());
+            prefixs.push(utxo_set::UTXO_BLOCK_PREFIX.to_string());
+        }
+
+        let db = DBStore::new(&db_file, prefixs);
         let tip = db.get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
             .unwrap();
         BlockChain {

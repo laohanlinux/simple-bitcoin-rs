@@ -1,74 +1,67 @@
-extern crate leveldb_rs;
 extern crate tempdir;
-extern crate lmdb_rs as lmdb;
-
-use self::leveldb_rs::*;
-use self::lmdb::*;
+extern crate rocksdb;
 
 use super::util;
 
 use std::sync::{Arc, Mutex};
 use std::path::Path;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct DBStore {
-    pub db: Arc<Mutex<Environment>>,
+    pub db: Arc<HashMap<String, Mutex<rocksdb::DB>>>,
 }
 
 impl DBStore {
-    pub fn new(path: &str, max_db: usize) -> DBStore {
-        let env = EnvBuilder::new().max_dbs(max_db).open(path, 0o777).unwrap();
-        DBStore { db: Arc::new(Mutex::new(env)) }
+    pub fn new(path: &str, prefixs: Vec<String>) -> DBStore {
+        let mut db_map = HashMap::new();
+        for prefix in prefixs {
+            let db_path = format!("{}/", prefix);
+            let db = rocksdb::DB::open_default(db_path).unwrap();
+            db_map.insert(prefix, Mutex::new(db));
+        }
+        DBStore { db: Arc::new(db_map) }
     }
 
     pub fn get_with_prefix(&self, key: &[u8], prefix: &str) -> Option<Vec<u8>> {
-        let db_clone = self.db.clone();
-        let db = db_clone.lock().unwrap();
-        let db_handle = db.create_db(prefix, DbFlags::empty()).unwrap();
-        let reader = db.get_reader().unwrap();
-        let db = reader.bind(&db_handle);
-        Some(db.get(&key).unwrap())
+        let db = self.db.get(prefix).unwrap();
+        let db = db.lock().unwrap();
+        match db.get(key) {
+            Ok(Some(value)) => {
+                let v = value.to_utf8().unwrap();
+                Some(Vec::from(v))
+            }
+            Ok(None) => None,
+            Err(e) => panic!(e),
+        }
     }
 
     pub fn put_with_prefix(&self, key: &[u8], value: &[u8], prefix: &str) {
-        let db_clone = self.db.clone();
-        let db = db_clone.lock().unwrap();
-        let db_handle = db.create_db(prefix, DbFlags::empty()).unwrap();
-
-        let txn = db.new_transaction().unwrap();
-        let db = txn.bind(&db_handle);
-        db.set(&key, &value).unwrap();
+        let db = self.db.get(prefix).unwrap();
+        let db = db.lock().unwrap();
+        db.put(key, value).unwrap();
     }
 
     // return value not included prefix
     pub fn get_all_with_prefix(&self, prefix: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
-        let db_clone = self.db.clone();
-        let db = db_clone.lock().unwrap();
-        let db_handle = db.create_db(prefix, DbFlags::empty()).unwrap();
-        let reader = db.get_reader().unwrap();
-        let db = reader.bind(&db_handle);
-        let mut cursor = db.new_cursor().unwrap();
-
+        let db = self.db.get(prefix).unwrap();
+        let db = db.lock().unwrap();
+        let mut iter = db.raw_iterator();
+        iter.seek_to_first();
+        let mut kvs = Vec::new();
+        while iter.valid() {
+            kvs.push((iter.key().unwrap(), iter.value().unwrap()));
+        }
+        kvs
     }
 
     pub fn delete(&self, key: &[u8], prefix: &str) {
-        let mut write_opt = DBWriteOptions::new().unwrap();
-        write_opt.set_sync(true);
-        let enc_key = enc_key(key, prefix);
-        let db_clone = self.db.clone();
-        let mut db = db_clone.lock().unwrap();
-        println!("db 删除数据=> {}", util::encode_hex(&enc_key));
-        db.delete_opts(&enc_key, write_opt).unwrap();
+        let db = self.db.get(prefix).unwrap();
+        let db = db.lock().unwrap();
+        db.delete(key).unwrap()
     }
 }
-pub fn enc_key(key: &[u8], prefix: &str) -> Vec<u8> {
-    let mut enc_key = Vec::from(prefix);
-    enc_key.extend_from_slice(key);
-    enc_key
-}
 
-pub fn dec_key<'a>(enc_key: &'a [u8], prefix: &str) -> (&'a [u8], &'a [u8]) {
-    let prefix_bit = Vec::from(prefix).len();
-    assert!(enc_key.len() >= prefix_bit);
-    (&enc_key[..prefix_bit], &enc_key[prefix_bit..])
+fn cba(input: &Box<[u8]>) -> Box<[u8]> {
+    input.iter().cloned().collect::<Vec<_>>().into_boxed_slice()
 }

@@ -5,7 +5,6 @@ use super::block;
 use super::transaction::*;
 use super::blockchain::BlockChain;
 use super::util;
-use super::db::dec_key;
 use super::log::*;
 
 use std::collections::HashMap;
@@ -15,9 +14,9 @@ pub struct UTXOSet<'a> {
     pub blockchain: Ref<'a, BlockChain>,
 }
 
-impl<'a> UTXOSet<'a> {
-    const UTXO_BLOCK_PREFIX: &'static str = "utxo-";
+pub const UTXO_BLOCK_PREFIX: &'static str = "utxo-";
 
+impl<'a> UTXOSet<'a> {
     pub fn new(blockchain: Ref<BlockChain>) -> UTXOSet {
         UTXOSet { blockchain: blockchain }
     }
@@ -32,7 +31,7 @@ impl<'a> UTXOSet<'a> {
         let mut accumulated = 0;
         let db = self.blockchain.db.borrow();
 
-        let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
+        let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
         for kv in &kvs {
             let txid = util::encode_hex(&kv.0);
             warn!(LOG, "序列化的交易id: {:?}", &txid);
@@ -65,9 +64,9 @@ impl<'a> UTXOSet<'a> {
     pub fn find_utxo(&self, pubkey_hash: &[u8]) -> Vec<TXOutput> {
         let mut utxos = Vec::<TXOutput>::new();
         let db = &self.blockchain.db.borrow();
-        let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
+        let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
         if kvs.len() == 0 {
-            warn!(LOG, "no utxo in blockchain({})", Self::UTXO_BLOCK_PREFIX);
+            warn!(LOG, "no utxo in blockchain({})", UTXO_BLOCK_PREFIX);
         }
         for kv in &kvs {
             warn!(
@@ -98,18 +97,18 @@ impl<'a> UTXOSet<'a> {
 
     pub fn count_transactions(&self) -> usize {
         let db = &self.blockchain.db.borrow();
-        let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
+        let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
         kvs.len()
     }
 
     pub fn reindex(&self) {
         let db = self.blockchain.db.borrow();
-        let kvs = db.get_all_with_prefix(Self::UTXO_BLOCK_PREFIX);
+        let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
         if kvs.len() == 0 {
             warn!(LOG, "no utxo in db");
         }
         for kv in &kvs {
-            db.delete(&kv.0, Self::UTXO_BLOCK_PREFIX);
+            db.delete(&kv.0, UTXO_BLOCK_PREFIX);
             warn!(LOG, "delete key {:?}, {:?}", kv.0, &kv.1);
         }
 
@@ -124,7 +123,7 @@ impl<'a> UTXOSet<'a> {
             db.put_with_prefix(
                 &util::decode_hex(&kv.0),
                 &TXOutputs::serialize(&kv.1),
-                Self::UTXO_BLOCK_PREFIX,
+                UTXO_BLOCK_PREFIX,
             );
         }
     }
@@ -143,8 +142,7 @@ impl<'a> UTXOSet<'a> {
                         &vin.vout,
                         &util::encode_hex(&block.hash)
                     );
-                    let out_bytes = db.get_with_prefix(&vin.txid, Self::UTXO_BLOCK_PREFIX)
-                        .unwrap();
+                    let out_bytes = db.get_with_prefix(&vin.txid, UTXO_BLOCK_PREFIX).unwrap();
                     let outputs = TXOutputs::deserialize_outputs(&out_bytes);
 
                     for (out_idx, out) in &*outputs.outputs {
@@ -155,14 +153,14 @@ impl<'a> UTXOSet<'a> {
                     if update_outs.outputs.len() == 0 {
                         // the txid's outputs all spend, delete it from db
                         debug!(LOG, "删除旧的utxo {}", util::encode_hex(&vin.txid));
-                        db.delete(&vin.txid, Self::UTXO_BLOCK_PREFIX);
+                        db.delete(&vin.txid, UTXO_BLOCK_PREFIX);
                     } else {
                         // update the outputs
                         debug!(LOG, "更新utxo {}", util::encode_hex(&vin.txid));
                         db.put_with_prefix(
                             &vin.txid,
                             &TXOutputs::serialize(&update_outs),
-                            Self::UTXO_BLOCK_PREFIX,
+                            UTXO_BLOCK_PREFIX,
                         );
                     }
                 }
@@ -178,7 +176,7 @@ impl<'a> UTXOSet<'a> {
             db.put_with_prefix(
                 &tx.id,
                 &TXOutputs::serialize(&new_outputs),
-                Self::UTXO_BLOCK_PREFIX,
+                UTXO_BLOCK_PREFIX,
             );
         }
     }
