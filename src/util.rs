@@ -14,7 +14,6 @@ use super::transaction;
 use super::error::Error;
 
 use self::bigint::U256;
-use self::bigint::uint::*;
 
 use self::sha2::{Sha256, Digest as Sha256Digest};
 use self::secp256k1::{Signature, Secp256k1, Message, ContextFlag};

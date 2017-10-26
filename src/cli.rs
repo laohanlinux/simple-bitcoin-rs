@@ -1,12 +1,10 @@
 extern crate slog;
 extern crate slog_term;
 extern crate prettytable;
-extern crate leveldb_rs;
 
 use self::prettytable::Table;
 use self::prettytable::row::Row;
 use self::prettytable::cell::Cell;
-use self::leveldb_rs::*;
 
 use super::util;
 use super::log::*;
@@ -16,8 +14,6 @@ use super::blockchain::BlockChain;
 use super::utxo_set::UTXOSet;
 use super::proof_of_work::ProofOfWork;
 use super::transaction;
-use super::db::DBStore;
-
 use std::fs;
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
@@ -86,12 +82,14 @@ pub fn print_chain(node: String) -> Result<(), String> {
         block_table.add_row(Row::new(vec![
             Cell::new("Block"),
             Cell::new("Height"),
+            Cell::new("Nonce"),
             Cell::new("PrevBlock"),
             Cell::new("Pow"),
         ]));
         block_table.add_row(Row::new(vec![
             Cell::new(&util::encode_hex(&block.hash)),
-            Cell::new(&format!("{:?}", &block.height)),
+            Cell::new(&format!("{}", &block.height)),
+            Cell::new(&format!("{}", &block.nonce)),
             Cell::new(&util::encode_hex(&block.prev_block_hash)),
             Cell::new(&format!(
                 "{:?}",
@@ -158,13 +156,12 @@ pub fn get_utxo(txid: String, node: String) -> Result<(), String> {
     Ok(())
 }
 
-pub fn get_utxos(node: String) ->Result<(), String>{
+pub fn get_utxos(node: String) -> Result<(), String> {
     let block_chain = BlockChain::new_blockchain(node);
     let db = block_chain.db.borrow();
     let utxos = db.get_all_with_prefix("utxo-");
     for kv in &utxos {
         let k_txid = util::encode_hex(&kv.0);
-        println!("{:?} {:?}", k_txid, String::from_utf8_lossy(&kv.1));
     }
     Ok(())
 }
@@ -180,7 +177,6 @@ pub fn get_balance(address: String, node: String) -> Result<(), String> {
     let pub_key_hash = util::decode_base58(address.clone());
     let pub_key_hash = &pub_key_hash[1..(pub_key_hash.len() - 4)];
     let utxos = utxo.find_utxo(pub_key_hash);
-    info!(LOG, "pub_key_has {:?}", pub_key_hash);
     for out in utxos {
         balance += out.value;
     }
@@ -200,7 +196,6 @@ pub fn get_balances(wallet_store: String, node: String) -> Result<(), String> {
         let pub_key_hash = util::decode_base58(addr.clone());
         let pub_key_hash = &pub_key_hash[1..(pub_key_hash.len() - 4)];
         let utxos = utxo.find_utxo(pub_key_hash);
-        info!(LOG, "pub_key_has {:?}", pub_key_hash);
         for out in utxos {
             balance += out.value;
         }

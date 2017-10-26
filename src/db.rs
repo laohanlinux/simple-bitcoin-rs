@@ -4,7 +4,6 @@ extern crate rocksdb;
 use super::util;
 
 use std::sync::{Arc, Mutex};
-use std::path::Path;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -16,7 +15,7 @@ impl DBStore {
     pub fn new(path: &str, prefixs: Vec<String>) -> DBStore {
         let mut db_map = HashMap::new();
         for prefix in prefixs {
-            let db_path = format!("{}/", prefix);
+            let db_path = format!("{}/{}", path, prefix);
             let db = rocksdb::DB::open_default(db_path).unwrap();
             db_map.insert(prefix, Mutex::new(db));
         }
@@ -28,7 +27,7 @@ impl DBStore {
         let db = db.lock().unwrap();
         match db.get(key) {
             Ok(Some(value)) => {
-                let v = value.to_utf8().unwrap();
+                let v = value.to_vec();
                 Some(Vec::from(v))
             }
             Ok(None) => None,
@@ -51,6 +50,7 @@ impl DBStore {
         let mut kvs = Vec::new();
         while iter.valid() {
             kvs.push((iter.key().unwrap(), iter.value().unwrap()));
+            iter.next();
         }
         kvs
     }

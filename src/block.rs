@@ -42,20 +42,18 @@ impl Block {
     }
 
     pub fn serialize(block: &Block) -> Vec<u8> {
-        // serde_json::to_string(block).unwrap().into_bytes()
         serde_json::to_vec(block).unwrap()
     }
 
     pub fn deserialize_block(data: &Vec<u8>) -> Self {
-        // serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
         serde_json::from_slice(data).unwrap()
     }
+
 
     pub fn new_genesis_block(coinbase: Transaction) -> Self {
         let block: Block = Block::new(vec![coinbase], vec![], 0);
         block
     }
-
 
     pub fn hash_transactions(&self) -> Vec<u8> {
         let mut transaction = vec![];

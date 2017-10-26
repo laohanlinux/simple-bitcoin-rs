@@ -34,18 +34,17 @@ impl<'a> UTXOSet<'a> {
         let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
         for kv in &kvs {
             let txid = util::encode_hex(&kv.0);
-            warn!(LOG, "序列化的交易id: {:?}", &txid);
             let outs = TXOutputs::deserialize_outputs(&kv.1);
             for (out_idx, out) in &*outs.outputs {
                 if out.is_locked_with_key(pubkey_hash) && accumulated < amout {
-                    debug!(
-                        LOG,
-                        "解锁:{:?} - 交易:{:?} - 索引:{:?} - 可用资产: {:?}",
-                        util::encode_hex(pubkey_hash),
-                        &txid,
-                        out_idx,
-                        out.value
-                    );
+                    // debug!(
+                    //     LOG,
+                    //     "解锁:{:?} - 交易:{:?} - 索引:{:?} - 可用资产: {:?}",
+                    //     util::encode_hex(pubkey_hash),
+                    //     &txid,
+                    //     out_idx,
+                    //     out.value
+                    // );
                     accumulated += out.value;
                     unspent_outs.entry(txid.clone()).or_insert(vec![]).push(
                         *out_idx,
@@ -53,10 +52,7 @@ impl<'a> UTXOSet<'a> {
                 }
             }
         }
-        for (k, v) in &unspent_outs {
-            debug!(LOG, "校验数据, 交易{:?}, 索引: {:?}", k, v);
-        }
-
+        
         (accumulated, unspent_outs)
     }
 
@@ -69,19 +65,9 @@ impl<'a> UTXOSet<'a> {
             warn!(LOG, "no utxo in blockchain({})", UTXO_BLOCK_PREFIX);
         }
         for kv in &kvs {
-            warn!(
-                LOG,
-                "find_utxo 序列化的交易id {:?}",
-                util::encode_hex(&kv.0)
-            );
             let outs = TXOutputs::deserialize_outputs(&kv.1);
             for (out_idx, out) in &*outs.outputs {
                 if !out.is_locked_with_key(pubkey_hash) {
-                    info!(
-                        LOG,
-                        "skip the pubkey_hash: {:?}",
-                        util::encode_hex(&pubkey_hash)
-                    );
                     continue;
                 }
                 info!(
@@ -136,12 +122,6 @@ impl<'a> UTXOSet<'a> {
                 for vin in &tx.vin {
                     // store the unspend outputs
                     let mut update_outs = TXOutputs::new(HashMap::new());
-                    println!(
-                        "当前的输入交易id为:{:?} - {:?}， 区块为:{:?}",
-                        &util::encode_hex(&vin.txid),
-                        &vin.vout,
-                        &util::encode_hex(&block.hash)
-                    );
                     let out_bytes = db.get_with_prefix(&vin.txid, UTXO_BLOCK_PREFIX).unwrap();
                     let outputs = TXOutputs::deserialize_outputs(&out_bytes);
 

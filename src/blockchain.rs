@@ -1,7 +1,5 @@
-extern crate leveldb_rs;
 extern crate secp256k1;
 
-use self::leveldb_rs::*;
 use self::secp256k1::key::SecretKey;
 
 use super::block::*;
@@ -14,7 +12,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
 lazy_static! {
-    static ref LAST_BLOCK_HASH_KEY:&'static [u8]  = b"".as_ref();
+    static ref LAST_BLOCK_HASH_KEY:&'static [u8]  = b"last_block".as_ref();
     static ref LAST_BLOCK_HASH_PREFIX:&'static str = "l-";
     static ref BLOCK_PREFIX:&'static str  = "blocks";
     static ref GENESIS_COINBASE_DATA:&'static str = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
@@ -32,12 +30,6 @@ impl BlockChain {
     pub fn create_blockchain(address: String, node: String) -> BlockChain {
         let cbtx = Transaction::new_coinbase_tx(address, (*GENESIS_COINBASE_DATA).to_string());
         let genesis_block = Block::new_genesis_block(cbtx);
-
-        let mut db_opt = DBOptions::new().expect("error create options");
-        db_opt
-            .set_error_if_exists(true)
-            .set_create_if_missing(true)
-            .set_paranoid_checks(true);
 
         let db_file = rt_format!(DBFILE, &node).unwrap();
         let mut prefixs = Vec::<String>::new();
@@ -63,10 +55,6 @@ impl BlockChain {
     }
 
     pub fn new_blockchain(node: String) -> BlockChain {
-        let mut db_opt = DBOptions::new().expect("error create options");
-        db_opt.set_create_if_missing(false).set_paranoid_checks(
-            true,
-        );
         let db_file = rt_format!(DBFILE, node).unwrap();
         let mut prefixs = Vec::<String>::new();
         {

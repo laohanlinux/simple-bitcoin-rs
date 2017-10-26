@@ -70,13 +70,10 @@ impl Transaction {
         if acc < amount {
             return Err("ERROR: Not enough founds".to_owned());
         }
-        println!("================================================");
-        debug!(LOG, "找到的可被消费的输出为:");
         // Build a list of inputs
         for kv in &valid_outputs {
             let txid = util::decode_hex(&kv.0);
             for out in kv.1 {
-                debug!(LOG, "交易的ID {:?}, 交易的索引{:?} ", &kv.0, out);
                 let input = TXInput::new(txid.clone(), *out, vec![], pub_key.clone());
                 inputs.push(input);
             }
@@ -94,27 +91,19 @@ impl Transaction {
         };
         let txid = tx.hash();
         tx.id = txid;
-        debug!(
-            LOG,
-            "此次生产的交易id {:?}",
-            util::encode_hex(&tx.id)
-        );
         utxoset.blockchain.sign_transaction(
             &mut tx,
             &wallet.secret_key,
         );
-        println!("================================================");
         Ok(tx)
     }
 
     // TODO add
     pub fn deserialize_transaction(data: &Vec<u8>) -> Transaction {
-        // serde_json::from_str(&String::from_utf8(data.clone()).unwrap()).unwrap()
         serde_json::from_slice(data).unwrap()
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        // serde_json::to_string(self).unwrap().into_bytes()
         serde_json::to_vec(self).unwrap()
     }
     // IsCoinbase checks whether the transaction is coinbase
@@ -268,8 +257,6 @@ impl Transaction {
             tx_copy.vin[inid_idx].signature = vec![];
             tx_copy.vin[inid_idx].pub_key = prev_tx.vout[inid_idx].pub_key_hash.clone();
 
-            println!("public_key {:?}", &tx_input.pub_key);
-
             let origin_data_to_sign = util::packet_sign_content(&tx_copy);
             let verify = util::verify(&tx_input.pub_key, &tx_input.signature, origin_data_to_sign);
             if verify {
@@ -358,7 +345,6 @@ impl TXOutputs {
 
     // TODO
     pub fn deserialize_outputs(data: &Vec<u8>) -> TXOutputs {
-        println!("deserialize=> {:?}", String::from_utf8_lossy(data));
         serde_json::from_slice(data).unwrap()
     }
 }
@@ -377,8 +363,8 @@ mod tests {
         let mut outputs = HashMap::new();
         outputs.insert(out_idx, coin_base);
         let outputs = super::TXOutputs::new(outputs);
-        
-        // deserialize, serialize 
+
+        // deserialize, serialize
         {
             let ser = super::TXOutputs::serialize(&outputs);
             let expect_outputs = super::TXOutputs::deserialize_outputs(&ser);
@@ -389,7 +375,5 @@ mod tests {
 
 
     #[test]
-    fn txoutputs() {
-
-    }
+    fn txoutputs() {}
 }
