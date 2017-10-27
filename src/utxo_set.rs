@@ -52,7 +52,7 @@ impl<'a> UTXOSet<'a> {
                 }
             }
         }
-        
+
         (accumulated, unspent_outs)
     }
 
