@@ -1,3 +1,9 @@
+#![feature(plugin, decl_macro)]
+#![plugin(rocket_codegen)]
+ #![feature(attr_literals)]
+
+extern crate rocket;
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -202,6 +208,10 @@ fn run(matches: ArgMatches) -> Result<(), String> {
         ("send", Some(m)) => Ok(run_send(m)),
         _ => Ok(()),
     }
+
+    rocket::ignite()
+        .mount("/", routes![http_server::index])
+        .launch();
 }
 
 fn run_new(matches: &ArgMatches, wallet: &str) {

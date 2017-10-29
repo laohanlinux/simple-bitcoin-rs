@@ -34,6 +34,14 @@ futures = "0.1"
 hyper = "0.11"
 tokio-core = "0.1"
 
+rocket = "0.3.3"
+rocket_codegen = "0.3.3"
+
+[dependencies.rocket_contrib]
+version = "0.1.5"
+default-features = false
+features = ["handlebars_templates"]
+
 [[bin]]
 path = "src/main.rs"
 name = "bitcoin"
