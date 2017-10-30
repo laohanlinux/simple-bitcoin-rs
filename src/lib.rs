@@ -1,3 +1,10 @@
+#![feature(plugin, decl_macro)]
+#![plugin(rocket_codegen)]
+#![feature(attr_literals)]
+#![allow(unused_variables)]
+
+#[macro_use] extern crate rocket_contrib;
+
 #[macro_use]
 extern crate serde_derive;
 

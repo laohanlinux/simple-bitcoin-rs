@@ -1,10 +1,14 @@
 extern crate slog;
 extern crate slog_term;
 extern crate prettytable;
+extern crate sapper;
+extern crate typemap;
 
 use self::prettytable::Table;
 use self::prettytable::row::Row;
 use self::prettytable::cell::Cell;
+use self::sapper::{SapperApp, SapperAppShell, Request, Response, Result as SapResult};
+use self::typemap::Key;
 
 use super::util;
 use super::log::*;
@@ -14,9 +18,12 @@ use super::blockchain::BlockChain;
 use super::utxo_set::UTXOSet;
 use super::proof_of_work::ProofOfWork;
 use super::transaction;
+
+
 use std::fs;
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 pub fn create_wallet(node: String, del_old: bool) {
     if del_old {
@@ -273,4 +280,25 @@ pub fn send(
     utxo.update(&new_block.unwrap());
     info!(LOG, "{:?} send {} to {:?}", from, amount, to);
     Ok(())
+}
+
+pub struct BC;
+impl Key for BC{
+    type Value = Arc<Mutex<BlockChain>>;
+}
+
+pub fn server(node: String, addr: &str, port: u32) {
+    let block_chain = Arc::new(Mutex::new(BlockChain::new_blockchain(node.clone())));
+
+    // add webserver
+    let mut server = sapper::SapperApp::new();
+
+    server.address("127.0.0.1")
+        .port(1337)
+        .init_global(Box::new(move |req: &mut Request| -> SapResult<()> {
+            req.ext_mut().insert::<BC>(block_chain.clone());
+            Ok(())
+        }));
+
+    server.run_http();
 }

@@ -1,33 +1,16 @@
-#![feature(plugin, decl_macro)]
-#![plugin(rocket_codegen)]
- #![feature(attr_literals)]
-
 extern crate rocket;
 
-#[macro_use]
-extern crate serde_derive;
+#[macro_use] extern crate serde_derive;
+#[macro_use] extern crate quick_error;
+#[macro_use] extern crate lazy_static;
+#[macro_use] extern crate runtime_fmt;
+#[macro_use] extern crate slog;
+#[macro_use] extern crate slog_term;
+#[macro_use] extern crate clap;
+#[macro_use] extern crate bigint;
+#[macro_use] extern crate prettytable;
+#[macro_use] extern crate rocket_contrib;
 
-#[macro_use]
-extern crate quick_error;
-
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate runtime_fmt;
-
-#[macro_use]
-extern crate slog;
-extern crate slog_term;
-
-#[macro_use]
-extern crate clap;
-
-#[macro_use]
-extern crate bigint;
-
-#[macro_use]
-extern crate prettytable;
 
 use clap::{Arg, App, SubCommand, ArgMatches};
 
@@ -155,6 +138,13 @@ fn main() {
                 .arg(Arg::with_name("store").long("store").default_value(STORE)),
         )
         .subcommand(
+            SubCommand::with_name("server")
+                .about("start a p2p node")
+                .arg(Arg::with_name("store").long("store").default_value(STORE))
+                .arg(Arg::with_name("addr").long("addr").value_name("ADDR"))
+                .arg(Arg::with_name("port").long("port").value_name("PORT"))
+        )
+        .subcommand(
             SubCommand::with_name("send")
                 .about("send money...")
                 .arg(Arg::with_name("store").long("store").default_value(STORE))
@@ -183,6 +173,8 @@ fn main() {
     if let Err(e) = run(matches) {
         error!(LOG, "{}", e);
     }
+
+
 }
 
 fn run(matches: ArgMatches) -> Result<(), String> {
@@ -206,12 +198,16 @@ fn run(matches: ArgMatches) -> Result<(), String> {
         ("utxos", Some(m)) => Ok(run_get_utxos(m)),
         ("list_transactions", Some(m)) => Ok(run_list_transactions(m)),
         ("send", Some(m)) => Ok(run_send(m)),
+        ("server", Some(m)) => Ok(run_server(m)),
         _ => Ok(()),
     }
 
-    rocket::ignite()
-        .mount("/", routes![http_server::index])
-        .launch();
+
+}
+
+fn run_server(mathes: &ArgMatches) {
+    let store = mathes.value_of("store").unwrap();
+
 }
 
 fn run_new(matches: &ArgMatches, wallet: &str) {
