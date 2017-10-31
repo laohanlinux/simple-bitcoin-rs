@@ -283,7 +283,7 @@ pub fn send(
 }
 
 pub struct BC;
-impl Key for BC{
+impl Key for BC {
     type Value = Arc<Mutex<BlockChain>>;
 }
 
@@ -293,12 +293,14 @@ pub fn server(node: String, addr: &str, port: u32) {
     // add webserver
     let mut server = sapper::SapperApp::new();
 
-    server.address("127.0.0.1")
-        .port(1337)
-        .init_global(Box::new(move |req: &mut Request| -> SapResult<()> {
-            req.ext_mut().insert::<BC>(block_chain.clone());
-            Ok(())
-        }));
+    server.address("127.0.0.1").port(1337).init_global(
+        Box::new(
+            move |req: &mut Request| -> SapResult<()> {
+                req.ext_mut().insert::<BC>(block_chain.clone());
+                Ok(())
+            },
+        ),
+    );
 
     server.run_http();
 }

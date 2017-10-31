@@ -7,18 +7,13 @@ extern crate hyper;
 extern crate tokio_core;
 extern crate slog;
 extern crate slog_term;
-extern crate rocket;
 
 use self::shio::prelude::*;
 use self::shio::context::Key;
 use self::serde_json::Error;
-use self::hyper::Client;
-use self::hyper::{Method, Request, StatusCode};
+use self::hyper::{Client, Method, Request, StatusCode};
 use self::hyper::header::{ContentLength, ContentType};
 use self::futures::{Future, Stream};
-use self::tokio_core::reactor::Core;
-use self::rocket::*;
-
 
 use std::sync::Mutex;
 use std::io;
@@ -38,11 +33,6 @@ lazy_static!{
     static ref MEMPOOL: HashMap<String, Transaction> = HashMap::new();
 }
 
-
-//#[get("/")]
-//fn index() -> &'static str {
-//    "Hello, world!"
-//}
 
 //fn handle_addr(ctx: Context) -> Response {
 //    let mut body = Vec::new();
@@ -168,7 +158,6 @@ lazy_static!{
 //    resp.set_body(b"good lock to you!".to_vec());
 //    resp
 //}
-
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 struct addr {
     addr_list: Vec<String>,

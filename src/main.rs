@@ -1,15 +1,21 @@
-extern crate rocket;
-
-#[macro_use] extern crate serde_derive;
-#[macro_use] extern crate quick_error;
-#[macro_use] extern crate lazy_static;
-#[macro_use] extern crate runtime_fmt;
-#[macro_use] extern crate slog;
-#[macro_use] extern crate slog_term;
-#[macro_use] extern crate clap;
-#[macro_use] extern crate bigint;
-#[macro_use] extern crate prettytable;
-#[macro_use] extern crate rocket_contrib;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate quick_error;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate runtime_fmt;
+#[macro_use]
+extern crate slog;
+#[macro_use]
+extern crate slog_term;
+#[macro_use]
+extern crate clap;
+#[macro_use]
+extern crate bigint;
+#[macro_use]
+extern crate prettytable;
 
 
 use clap::{Arg, App, SubCommand, ArgMatches};
@@ -142,7 +148,7 @@ fn main() {
                 .about("start a p2p node")
                 .arg(Arg::with_name("store").long("store").default_value(STORE))
                 .arg(Arg::with_name("addr").long("addr").value_name("ADDR"))
-                .arg(Arg::with_name("port").long("port").value_name("PORT"))
+                .arg(Arg::with_name("port").long("port").value_name("PORT")),
         )
         .subcommand(
             SubCommand::with_name("send")
