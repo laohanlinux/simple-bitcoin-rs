@@ -1,3 +1,6 @@
+#![feature(plugin)]
+#![plugin(rocket_codegen)]
+
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -18,14 +21,15 @@ extern crate clap;
 extern crate bigint;
 #[macro_use]
 extern crate prettytable;
-
 #[macro_use]
 extern crate validator_derive;
 #[macro_use]
 extern crate validator;
 
 #[macro_use]
-extern crate sapper_std;
+extern crate rocket_contrib;
+
+extern crate rocket;
 
 use clap::{Arg, App, SubCommand, ArgMatches};
 
@@ -44,9 +48,9 @@ mod http_server;
 mod cli;
 mod log;
 mod server;
-mod command;
 
 use log::*;
+//use server::Node;
 
 // takes_value() and default_value() to read values from arguments like --option=foo
 
@@ -236,7 +240,7 @@ fn run_server(mathes: &ArgMatches) {
     let store = mathes.value_of("store").unwrap();
     let addr = mathes.value_of("addr").unwrap();
     let port = mathes.value_of("port").unwrap().parse::<u32>().unwrap();
-    cli::server(store.to_owned(), &addr, port);
+    cli::start_server(store.to_owned(), &addr, port);
 }
 
 fn run_new(matches: &ArgMatches, wallet: &str) {

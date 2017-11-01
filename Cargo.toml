@@ -33,12 +33,13 @@ lazy_static = "0.2.8"
 futures = "0.1"
 hyper = "0.11"
 tokio-core = "0.1"
-sapper = "0.1"
-sapper_body = "0.1"
-sapper_std = "0.1"
 typemap = "*"
 validator_derive = "^0.6.0"
 validator = "^0.6.0"
+
+rocket = "0.3.3"
+rocket_codegen = "0.3.3"
+rocket_contrib = "0.3.3"
 
 [[bin]]
 path = "src/main.rs"
