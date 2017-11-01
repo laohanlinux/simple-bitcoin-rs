@@ -7,6 +7,7 @@ extern crate hyper;
 extern crate tokio_core;
 extern crate slog;
 extern crate slog_term;
+extern crate validator;
 
 use self::shio::prelude::*;
 use self::shio::context::Key;
@@ -14,6 +15,9 @@ use self::serde_json::Error;
 use self::hyper::{Client, Method, Request, StatusCode};
 use self::hyper::header::{ContentLength, ContentType};
 use self::futures::{Future, Stream};
+use self::tokio_core::reactor::Core;
+
+use self::validator::{Validate, ValidationError};
 
 use std::sync::Mutex;
 use std::io;
@@ -32,7 +36,6 @@ lazy_static!{
     static ref BLOCKS_IN_TRANSIT: Vec<Vec<u8>> = vec![];
     static ref MEMPOOL: HashMap<String, Transaction> = HashMap::new();
 }
-
 
 //fn handle_addr(ctx: Context) -> Response {
 //    let mut body = Vec::new();
@@ -123,80 +126,38 @@ lazy_static!{
 //    }
 //}
 //
-//fn send_data(address: String, data: Vec<u8>) -> Result<Vec<u8>, hyper::Error> {
-//    let uri = format!("http://{}", address).parse()?;
-//    let mut core = Core::new().unwrap();
-//    let client = Client::new(&core.handle());
-//    let mut req = Request::new(Method::Post, uri);
-//    req.headers_mut().set(ContentType::json());
-//    req.headers_mut().set(ContentLength(data.len() as u64));
-//    req.set_body(data);
-//    let post = client.request(req).and_then(|res| res.body().concat2());
-//    let data = core.run(post)?;
-//    Ok(data.to_vec())
-//}
-///////////////////////////////////
-//
-//fn bad_read_request_body() -> Response {
-//    let mut resp = Response::new();
-//    resp.headers_mut().append_raw(
-//        "Content-Type",
-//        b"Application/json".to_vec(),
-//    );
-//    resp.set_status(StatusCode::BadRequest);
-//    resp.set_body(b"bad request".to_vec());
-//    resp
-//}
-//
-//fn ok_response() -> Response {
-//    let mut resp = Response::new();
-//    resp.headers_mut().append_raw(
-//        "Content-Type",
-//        b"Application/json".to_vec(),
-//    );
-//    resp.set_status(StatusCode::Ok);
-//    resp.set_body(b"good lock to you!".to_vec());
-//    resp
-//}
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-struct addr {
-    addr_list: Vec<String>,
+fn send_data(address: String, data: Vec<u8>) -> Result<Vec<u8>, hyper::Error> {
+    let uri = format!("http://{}", address).parse()?;
+    let mut core = Core::new().unwrap();
+    let client = Client::new(&core.handle());
+    let mut req = Request::new(Method::Post, uri);
+    req.headers_mut().set(ContentType::json());
+    req.headers_mut().set(ContentLength(data.len() as u64));
+    req.set_body(data);
+    let post = client.request(req).and_then(|res| res.body().concat2());
+    let data = core.run(post)?;
+    Ok(data.to_vec())
+}
+/////////////////////////////////
+
+pub fn bad_read_request_body() -> Response {
+    let mut resp = Response::new();
+    resp.headers_mut().append_raw(
+        "Content-Type",
+        b"Application/json".to_vec(),
+    );
+    resp.set_status(StatusCode::BadRequest);
+    resp.set_body(b"bad request".to_vec());
+    resp
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-struct block {
-    add_from: String,
-    block: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-struct get_block {
-    add_from: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-struct get_data {
-    add_from: String,
-    data_type: String,
-    id: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-struct inv {
-    add_from: String,
-    inv_type: String,
-    items: Vec<Vec<u8>>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-struct tx {
-    add_from: String,
-    transaction: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-struct verzion {
-    version: isize,
-    best_hight: isize,
-    addr_from: String,
+pub fn ok_response() -> Response {
+    let mut resp = Response::new();
+    resp.headers_mut().append_raw(
+        "Content-Type",
+        b"Application/json".to_vec(),
+    );
+    resp.set_status(StatusCode::Ok);
+    resp.set_body(b"good lock to you!".to_vec());
+    resp
 }
