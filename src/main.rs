@@ -48,6 +48,7 @@ mod http_server;
 mod cli;
 mod log;
 mod server;
+mod command;
 
 use log::*;
 //use server::Node;

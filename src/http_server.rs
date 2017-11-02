@@ -1,5 +1,5 @@
 extern crate shio;
-extern crate lazy_static;
+
 extern crate serde;
 extern crate serde_json;
 extern crate futures;
@@ -26,16 +26,8 @@ use std::io::prelude::*;
 use std::collections::HashMap;
 use std::borrow::Cow;
 
-use transaction::Transaction;
-use log::*;
-use blockchain::BlockChain;
 
-lazy_static!{
-    static ref KNOWN_NODES: Mutex<Vec<String>> = Mutex::new(vec!["localhost:3000".to_owned()]);
-    static ref MINING_ADDRESS: &'static str = "";
-    static ref BLOCKS_IN_TRANSIT: Vec<Vec<u8>> = vec![];
-    static ref MEMPOOL: HashMap<String, Transaction> = HashMap::new();
-}
+
 
 //fn handle_addr(ctx: Context) -> Response {
 //    let mut body = Vec::new();
@@ -57,7 +49,6 @@ lazy_static!{
 //    ok_response()
 //}
 //
-///*
 //fn handle_get_blocks(ctx: Context) -> Response {
 //    let mut body = Vec::new();
 //    if ctx.body().read_to_end(&mut body).is_err() {
@@ -79,14 +70,6 @@ lazy_static!{
 //}
 //
 //
-//
-//// TODO
-//fn request_blocks() {
-//    let nodes = KNOWN_NODES.lock().unwrap();
-//    for node in nodes.iter() {
-//        send_get_block(node.clone())
-//    }
-//}
 //
 //// command
 //fn send_get_block(address: String) {
@@ -126,38 +109,4 @@ lazy_static!{
 //    }
 //}
 //
-fn send_data(address: String, data: Vec<u8>) -> Result<Vec<u8>, hyper::Error> {
-    let uri = format!("http://{}", address).parse()?;
-    let mut core = Core::new().unwrap();
-    let client = Client::new(&core.handle());
-    let mut req = Request::new(Method::Post, uri);
-    req.headers_mut().set(ContentType::json());
-    req.headers_mut().set(ContentLength(data.len() as u64));
-    req.set_body(data);
-    let post = client.request(req).and_then(|res| res.body().concat2());
-    let data = core.run(post)?;
-    Ok(data.to_vec())
-}
-/////////////////////////////////
 
-pub fn bad_read_request_body() -> Response {
-    let mut resp = Response::new();
-    resp.headers_mut().append_raw(
-        "Content-Type",
-        b"Application/json".to_vec(),
-    );
-    resp.set_status(StatusCode::BadRequest);
-    resp.set_body(b"bad request".to_vec());
-    resp
-}
-
-pub fn ok_response() -> Response {
-    let mut resp = Response::new();
-    resp.headers_mut().append_raw(
-        "Content-Type",
-        b"Application/json".to_vec(),
-    );
-    resp.set_status(StatusCode::Ok);
-    resp.set_body(b"good lock to you!".to_vec());
-    resp
-}

@@ -287,26 +287,7 @@ pub fn start_server(node: String, addr: &str, port: u32) {
     let mut config = rocket::config::Config::production().expect("cwd");
     config.set_address(addr).unwrap();
     config.set_port(port as u16);
-    rocket::custom(config, true).mount("/message", routes![server::new]).launch();
+    rocket::custom(config, true)
+        .mount("/", routes![server::handle_addr])
+        .launch();
 }
-
-//pub struct BC;
-//impl Key for BC {
-//    type Value = Arc<Mutex<BlockChain>>;
-//}
-//
-//pub fn server(node: String, addr: &str, port: u32) {
-//    let block_chain = Arc::new(Mutex::new(BlockChain::new_blockchain(node.clone())));
-//
-//    // add webserver
-//    let mut server = sapper::SapperApp::new();
-//
-//    server.address(addr).port(port).init_global(Box::new(
-//        move |req: &mut Request| -> SapResult<()> {
-//            req.ext_mut().insert::<BC>(block_chain.clone());
-//            Ok(())
-//        },
-//    ));
-//    info!(LOG, "start a http node {}:{}", addr, port);
-//    server.run_http();
-//}
