@@ -6,6 +6,7 @@ extern crate lazy_static;
 use self::rocket_contrib::{Json, Value};
 use self::rocket::{Rocket, State};
 use self::rocket::local::Client;
+use self::rocket::http::ContentType;
 use self::rocket::config::{Config, Environment};
 
 use transaction::Transaction;
@@ -51,22 +52,42 @@ fn bad_json() -> Json<Value> {
     Json(json!({"status": "bad"}))
 }
 
-fn send_data(address: String, data: Vec<u8>) -> Result<Vec<u8>, hyper::Error> {
-    let client = Client::new(Rocket::ignite()).unwrap();
+//// command
+//fn send_get_block(address: String) {
+//    let request = get_block { add_from: address.clone() };
+//    let data = serde_json::to_vec(&request).unwrap();
+//    let res = send_data(format!("{}/get_blocks", address.clone()), data);
+//    if res.is_err() {
+//        error!(LOG, "http request error {:?}", res.err());
+//    } else {
+//        debug!(
+//            LOG,
+//            "{} request success, return value {:?}",
+//            address,
+//            String::from_utf8_lossy(&res.unwrap())
+//        );
+//    }
+//}
 
-//    let uri = format!("http://{}", address).parse()?;
-//    let mut core = Core::new().unwrap();
-//    let client = Client::new(&core.handle());
-//    let mut req = Request::new(Method::Post, uri);
-//    req.headers_mut().set(ContentType::json());
-//    req.headers_mut().set(ContentLength(data.len() as u64));
-//    req.set_body(data);
-//    let post = client.request(req).and_then(|res| res.body().concat2());
-//    let data = core.run(post)?;
-//    Ok(data.to_vec())
+fn send_get_block(address: String) {
+    let request = GetBlock{add_from: address};
+    let data = serde_json::to_vec(&request).unwrap();
+    let res = send_data()
 }
 
-fn rocket(address: String) -> Rocket {
-    let mut rocket = Config::new(Environment::Production).expect("bad rocket configure");
-    
+fn send_data(address: String, path: Stirng, data: Vec<u8>) -> Result<Vec<u8>, String> {
+    match rocket_post(address,path, data) {
+        Some(data) => Ok(data),
+        None => Err("data is nil")
+    }
+}
+
+fn rocket_post(address: String, Path: String, data: Vec<u8>) -> Option<Vec<u8>> {
+    let mut client = Client::new(rocket::ignite()).expect("valid rocket client");
+    let req = client.post(Path)
+        .header(ContentType::JSON)
+        .remote(address.parse().unwrap())
+        .body(data);
+    let resp = req.dispatch();
+    resp.body_bytes()
 }
