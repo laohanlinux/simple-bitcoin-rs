@@ -9,8 +9,8 @@ use super::db::DBStore;
 use super::util;
 use super::utxo_set;
 
-use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 lazy_static! {
     static ref LAST_BLOCK_HASH_KEY:&'static [u8]  = b"last_block".as_ref();
@@ -22,8 +22,8 @@ lazy_static! {
 pub const DBFILE: &str = "{}/blockchain.db";
 
 pub struct BlockChain {
-    tip: Cell<Vec<u8>>,
-    pub db: RefCell<DBStore>,
+    tip: Arc<Mutex<Vec<u8>>>,
+    pub db: Arc<DBStore>,
 }
 
 impl BlockChain {
@@ -50,8 +50,8 @@ impl BlockChain {
         db.put_with_prefix(*LAST_BLOCK_HASH_KEY, &key, *LAST_BLOCK_HASH_PREFIX);
 
         BlockChain {
-            tip: Cell::new(key),
-            db: RefCell::new(db),
+            tip: Arc::new(Mutex::new(key)),
+            db: Arc::new(db),
         }
     }
 
@@ -68,15 +68,15 @@ impl BlockChain {
         let tip = db.get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
             .unwrap();
         BlockChain {
-            tip: Cell::new(tip),
-            db: RefCell::new(db),
+            tip: Arc::new(Mutex::new(tip)),
+            db: Arc::new(db),
         }
     }
 
 
     pub fn add_block(&self, block: Block) {
         if self.db
-            .borrow()
+            .clone()
             .get_with_prefix(&block.hash, *BLOCK_PREFIX)
             .is_some()
         {
@@ -84,30 +84,34 @@ impl BlockChain {
         }
 
         let block_data = Block::serialize(&block);
-        self.db.borrow().put_with_prefix(
+        self.db.clone().put_with_prefix(
             &block.hash,
             &block_data,
             *BLOCK_PREFIX,
         );
 
         let last_hash = self.db
-            .borrow()
+            .clone()
             .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
             .unwrap();
         let last_block_data = self.db
-            .borrow()
+            .clone()
             .get_with_prefix(&last_hash, *BLOCK_PREFIX)
             .unwrap();
 
         let last_block = Block::deserialize_block(&last_block_data);
 
         if block.height > last_block.height {
-            self.db.borrow().put_with_prefix(
+            self.db.clone().put_with_prefix(
                 *LAST_BLOCK_HASH_KEY,
                 &block.hash,
                 *LAST_BLOCK_HASH_PREFIX,
             );
-            self.tip.set(block.hash.clone());
+            let tip = self.tip.clone();
+            {
+                let mut tip = tip.lock().unwrap();
+                *tip = block.hash.clone();
+            }
         }
     }
 
@@ -174,11 +178,11 @@ impl BlockChain {
     // TODO why not use self.tip
     pub fn get_best_height(&self) -> isize {
         let last_hash = self.db
-            .borrow()
+            .clone()
             .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
             .unwrap();
         let last_block_data = self.db
-            .borrow()
+            .clone()
             .get_with_prefix(&last_hash, *BLOCK_PREFIX)
             .unwrap();
         let last_block = Block::deserialize_block(&last_block_data);
@@ -186,7 +190,7 @@ impl BlockChain {
     }
 
     pub fn get_block(&self, block_hash: &[u8]) -> Option<Block> {
-        let block_data = self.db.borrow().get_with_prefix(block_hash, *BLOCK_PREFIX);
+        let block_data = self.db.clone().get_with_prefix(block_hash, *BLOCK_PREFIX);
         block_data.map(|v| Block::deserialize_block(&v))
     }
 
@@ -208,40 +212,45 @@ impl BlockChain {
         }
 
         let last_hash = self.db
-            .borrow()
+            .clone()
             .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
             .unwrap();
         let last_block_data = self.db
-            .borrow()
+            .clone()
             .get_with_prefix(&last_hash, *BLOCK_PREFIX)
             .unwrap();
         let last_block = Block::deserialize_block(&last_block_data);
         let last_height = last_block.height;
         let new_block = Block::new(transactions.clone(), last_hash, last_height + 1);
         let new_block_data = Block::serialize(&new_block);
-        self.db.borrow().put_with_prefix(
+        self.db.clone().put_with_prefix(
             &new_block.hash,
             &new_block_data,
             *BLOCK_PREFIX,
         );
-        self.db.borrow().put_with_prefix(
+        self.db.clone().put_with_prefix(
             *LAST_BLOCK_HASH_KEY,
             &new_block.hash,
             *LAST_BLOCK_HASH_PREFIX,
         );
-        self.tip.set(new_block.hash.clone());
+        let tip = self.tip.clone();
+        {
+            let mut tip = tip.lock().unwrap();
+            *tip = new_block.hash.clone();
+        }
         new_block
     }
 
     pub fn iter(&self) -> IterBlockchain {
-        let current_hash = &self.tip.take();
-        self.tip.set(current_hash.clone());
+        let tip = self.tip.clone();
+        let tip = tip.lock().unwrap();
+        let current_hash = tip.clone();
         let current_block_data = self.db
-            .borrow()
-            .get_with_prefix(current_hash, *BLOCK_PREFIX)
+            .clone()
+            .get_with_prefix(&current_hash, *BLOCK_PREFIX)
             .unwrap();
         let current_block = Block::deserialize_block(&current_block_data);
-        let db = self.db.borrow().clone();
+        let db = self.db.clone();
         IterBlockchain::new(db, current_block)
     }
 
@@ -271,11 +280,11 @@ impl BlockChain {
 
 pub struct IterBlockchain {
     next: Option<Block>,
-    db: DBStore,
+    db: Arc<DBStore>,
 }
 
 impl IterBlockchain {
-    pub fn new(db: DBStore, next: Block) -> IterBlockchain {
+    pub fn new(db: Arc<DBStore>, next: Block) -> IterBlockchain {
         IterBlockchain {
             db: db,
             next: Some(next),

@@ -49,6 +49,7 @@ mod cli;
 mod log;
 mod server;
 mod command;
+mod router;
 
 use log::*;
 //use server::Node;
@@ -240,7 +241,7 @@ fn run(matches: ArgMatches) -> Result<(), String> {
 fn run_server(mathes: &ArgMatches) {
     let store = mathes.value_of("store").unwrap();
     let addr = mathes.value_of("addr").unwrap();
-    let port = mathes.value_of("port").unwrap().parse::<u32>().unwrap();
+    let port = mathes.value_of("port").unwrap().parse::<u16>().unwrap();
     cli::start_server(store.to_owned(), &addr, port);
 }
 

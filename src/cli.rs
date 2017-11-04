@@ -2,7 +2,6 @@ extern crate slog;
 extern crate slog_term;
 extern crate prettytable;
 extern crate typemap;
-extern crate rocket;
 
 use self::prettytable::Table;
 use self::prettytable::row::Row;
@@ -18,6 +17,7 @@ use super::utxo_set::UTXOSet;
 use super::proof_of_work::ProofOfWork;
 use super::transaction;
 use super::server;
+use super::router;
 
 use std::fs;
 use std::cell::{Ref, RefCell};
@@ -69,8 +69,8 @@ pub fn create_blockchain(address: String, node: String) -> Result<(), String> {
     }
     let blockchain = BlockChain::create_blockchain(address, node);
     info!(LOG, "block chain disk data create successfully.");
-    let ref_bc = RefCell::new(blockchain);
-    UTXOSet::new(ref_bc.borrow()).reindex();
+    let ref_bc = Arc::new(blockchain);
+    UTXOSet::new(ref_bc.clone()).reindex();
     info!(LOG, "utxoset reindexs successfully.");
     Ok(())
 }
@@ -135,8 +135,8 @@ pub fn print_chain(node: String) -> Result<(), String> {
 }
 
 pub fn reindex_utxo(node: String) -> Result<(), String> {
-    let block_chain = RefCell::new(BlockChain::new_blockchain(node));
-    let utxo = UTXOSet::new(block_chain.borrow());
+    let block_chain = Arc::new(BlockChain::new_blockchain(node));
+    let utxo = UTXOSet::new(block_chain.clone());
     utxo.reindex();
 
     let count = utxo.count_transactions();
@@ -151,7 +151,7 @@ pub fn reindex_utxo(node: String) -> Result<(), String> {
 
 pub fn get_utxo(txid: String, node: String) -> Result<(), String> {
     let block_chain = BlockChain::new_blockchain(node);
-    let db = block_chain.db.borrow();
+    let db = block_chain.db.clone();
     let utxos = db.get_all_with_prefix("utxo-");
     for kv in &utxos {
         let k_txid = util::encode_hex(&kv.0);
@@ -164,7 +164,7 @@ pub fn get_utxo(txid: String, node: String) -> Result<(), String> {
 
 pub fn get_utxos(node: String) -> Result<(), String> {
     let block_chain = BlockChain::new_blockchain(node);
-    let db = block_chain.db.borrow();
+    let db = block_chain.db.clone();
     let utxos = db.get_all_with_prefix("utxo-");
     for kv in &utxos {
         let k_txid = util::encode_hex(&kv.0);
@@ -176,8 +176,8 @@ pub fn get_balance(address: String, node: String) -> Result<(), String> {
     if !Wallet::validate_address(address.clone()) {
         return Err("ERROR: Address is not valid".to_owned());
     }
-    let block_chain = RefCell::new(BlockChain::new_blockchain(node));
-    let utxo = UTXOSet::new(block_chain.borrow());
+    let block_chain = Arc::new(BlockChain::new_blockchain(node));
+    let utxo = UTXOSet::new(block_chain.clone());
 
     let mut balance = 0;
     let pub_key_hash = util::decode_base58(address.clone());
@@ -194,8 +194,8 @@ pub fn get_balance(address: String, node: String) -> Result<(), String> {
 pub fn get_balances(wallet_store: String, node: String) -> Result<(), String> {
     let wallets = Wallets::new_wallets(wallet_store.clone()).unwrap();
     let address = wallets.list_address();
-    let block_chain = RefCell::new(BlockChain::new_blockchain(node.clone()));
-    let utxo = UTXOSet::new(block_chain.borrow());
+    let block_chain = Arc::new(BlockChain::new_blockchain(node.clone()));
+    let utxo = UTXOSet::new(block_chain.clone());
 
     address.into_iter().for_each(|addr| {
         let mut balance = 0;
@@ -242,8 +242,8 @@ pub fn send(
     if !Wallet::validate_address(to.clone()) {
         return Err("ERROR: To's address is not valid".to_owned());
     }
-    let block_chain = Rc::new(RefCell::new(BlockChain::new_blockchain(node.clone())));
-    let utxo = UTXOSet::new(block_chain.borrow());
+    let block_chain = Arc::new(BlockChain::new_blockchain(node.clone()));
+    let utxo = UTXOSet::new(block_chain.clone());
     let result = {
         let wallets = Wallets::new_wallets(wallet_store).unwrap();
         let from_wallet = wallets.get_wallet(from.clone()).unwrap();
@@ -268,7 +268,7 @@ pub fn send(
     let new_block = if mine_now {
         let cbtx = transaction::Transaction::new_coinbase_tx(from.clone(), "".to_owned());
         let txs = vec![cbtx, result];
-        let new_block = block_chain.borrow().mine_block(&txs);
+        let new_block = block_chain.clone().mine_block(&txs);
         Some(new_block)
     } else {
         None
@@ -281,13 +281,8 @@ pub fn send(
     Ok(())
 }
 
-
-pub fn start_server(node: String, addr: &str, port: u32) {
-    let block_chain = Arc::new(Mutex::new(BlockChain::new_blockchain(node.clone())));
-    let mut config = rocket::config::Config::production().expect("cwd");
-    config.set_address(addr).unwrap();
-    config.set_port(port as u16);
-    rocket::custom(config, true)
-        .mount("/", routes![server::handle_addr])
-        .launch();
+pub fn start_server(node: String, addr: &str, port: u16) {
+    let block_chain = BlockChain::new_blockchain(node);
+    let block_state = router::BlockState::new(block_chain);
+    router::init_router(addr, port, block_state);
 }

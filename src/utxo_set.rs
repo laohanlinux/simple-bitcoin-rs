@@ -8,16 +8,16 @@ use super::util;
 use super::log::*;
 
 use std::collections::HashMap;
-use std::cell::Ref;
+use std::sync::Arc;
 
-pub struct UTXOSet<'a> {
-    pub blockchain: Ref<'a, BlockChain>,
+pub struct UTXOSet {
+    pub blockchain: Arc<BlockChain>,
 }
 
 pub const UTXO_BLOCK_PREFIX: &'static str = "utxo-";
 
-impl<'a> UTXOSet<'a> {
-    pub fn new(blockchain: Ref<BlockChain>) -> UTXOSet {
+impl UTXOSet {
+    pub fn new(blockchain: Arc<BlockChain>) -> UTXOSet {
         UTXOSet { blockchain: blockchain }
     }
 
@@ -29,7 +29,7 @@ impl<'a> UTXOSet<'a> {
     ) -> (isize, HashMap<String, Vec<isize>>) {
         let mut unspent_outs: HashMap<String, Vec<isize>> = HashMap::new();
         let mut accumulated = 0;
-        let db = self.blockchain.db.borrow();
+        let db = self.blockchain.db.clone();
 
         let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
         for kv in &kvs {
@@ -59,7 +59,7 @@ impl<'a> UTXOSet<'a> {
     // |netenv|pub_key_hash|checksum|
     pub fn find_utxo(&self, pubkey_hash: &[u8]) -> Vec<TXOutput> {
         let mut utxos = Vec::<TXOutput>::new();
-        let db = &self.blockchain.db.borrow();
+        let db = &self.blockchain.db.clone();
         let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
         if kvs.len() == 0 {
             warn!(LOG, "no utxo in blockchain({})", UTXO_BLOCK_PREFIX);
@@ -82,13 +82,13 @@ impl<'a> UTXOSet<'a> {
     }
 
     pub fn count_transactions(&self) -> usize {
-        let db = &self.blockchain.db.borrow();
+        let db = &self.blockchain.db.clone();
         let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
         kvs.len()
     }
 
     pub fn reindex(&self) {
-        let db = self.blockchain.db.borrow();
+        let db = self.blockchain.db.clone();
         let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
         if kvs.len() == 0 {
             warn!(LOG, "no utxo in db");
@@ -116,7 +116,7 @@ impl<'a> UTXOSet<'a> {
 
     // 增加新块，新块的交易输入可能包含了当前的“未花费”输出，这些输出需要清理掉
     pub fn update(&self, block: &block::Block) {
-        let db = self.blockchain.db.borrow();
+        let db = self.blockchain.db.clone();
         for tx in &block.transactions {
             if !tx.is_coinbase() {
                 for vin in &tx.vin {
