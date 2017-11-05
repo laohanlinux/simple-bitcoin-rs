@@ -51,9 +51,10 @@ pub struct TX {
     pub transaction: Vec<u8>,
 }
 
+// use to sync missing blocks
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Verzion {
     pub version: isize,
     pub best_hight: isize,
-    pub addr_from: String,
+    pub addr_from: String, // stores the address of the sender
 }

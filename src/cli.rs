@@ -283,6 +283,8 @@ pub fn send(
 
 pub fn start_server(node: String, addr: &str, port: u16) {
     let block_chain = BlockChain::new_blockchain(node);
-    let block_state = router::BlockState::new(block_chain);
+    let local_node = format!("{}:{}", &addr, port);
+    let mining_address = "".to_owned();
+    let block_state = router::BlockState::new(block_chain, local_node, mining_address);
     router::init_router(addr, port, block_state);
 }

@@ -31,6 +31,9 @@ extern crate rocket_contrib;
 
 extern crate rocket;
 
+#[macro_use]
+pub mod comm;
+
 use clap::{Arg, App, SubCommand, ArgMatches};
 
 mod error;

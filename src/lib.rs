@@ -28,21 +28,5 @@ extern crate rocket_contrib;
 
 extern crate rocket;
 
-//mod error;
-//mod block;
-//mod blockchain;
-//mod utxo_set;
-//mod wallet;
-//mod wallets;
-//mod db;
-//mod util;
-//mod merkle_tree;
-//mod transaction;
-//mod proof_of_work;
-//mod http_server;
-//mod cli;
-//mod log;
-//mod server;
-//
-//mod server;
-//pub use server::*;
+#[macro_use]
+pub mod comm;
