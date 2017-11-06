@@ -3,6 +3,9 @@ extern crate validator;
 
 use self::validator::{Validate, ValidationError};
 
+pub const PROTOCOL: &str = "http";
+pub const NODE_VERSION: isize = 1;
+
 #[derive(Debug, Validate, Deserialize)]
 struct SignupData {
     #[validate(email)]
@@ -53,8 +56,18 @@ pub struct TX {
 
 // use to sync missing blocks
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct Verzion {
+pub struct Version {
     pub version: isize,
-    pub best_hight: isize,
+    pub best_height: isize,
     pub addr_from: String, // stores the address of the sender
+}
+
+impl Version {
+    pub fn new(ver: isize, best_height: isize, addr_from: String) -> Version {
+        Version{
+            version: ver,
+            best_height: best_height,
+            addr_from: addr_from,
+        } 
+    }    
 }

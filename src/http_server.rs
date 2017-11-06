@@ -26,9 +26,6 @@ use std::io::prelude::*;
 use std::collections::HashMap;
 use std::borrow::Cow;
 
-
-
-
 //fn handle_addr(ctx: Context) -> Response {
 //    let mut body = Vec::new();
 //    if ctx.body().read_to_end(&mut body).is_err() {

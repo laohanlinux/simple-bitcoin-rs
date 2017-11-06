@@ -186,7 +186,6 @@ pub fn get_balance(address: String, node: String) -> Result<(), String> {
     for out in utxos {
         balance += out.value;
     }
-
     info!(LOG, "Balance of {}: {}", address, balance);
     Ok(())
 }
@@ -205,7 +204,6 @@ pub fn get_balances(wallet_store: String, node: String) -> Result<(), String> {
         for out in utxos {
             balance += out.value;
         }
-
         info!(LOG, "Balance of {}: {}", addr, balance);
     });
     Ok(())
@@ -221,7 +219,6 @@ pub fn list_transactions(node: String) -> Result<(), String> {
                 util::encode_hex(&transaction.id),
                 util::encode_hex(&block.hash)
             );
-
         }
     }
     Ok(())
