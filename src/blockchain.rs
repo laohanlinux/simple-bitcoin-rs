@@ -264,7 +264,7 @@ impl BlockChain {
     }
 
     // TODO why coinbase need not verify
-    fn verify_transaction(&self, tx: &Transaction) -> bool {
+    pub fn verify_transaction(&self, tx: &Transaction) -> bool {
         if tx.is_coinbase() {
             return true;
         }

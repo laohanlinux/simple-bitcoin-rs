@@ -4,10 +4,8 @@ extern crate rocket_contrib;
 extern crate lazy_static;
 
 use self::rocket_contrib::{Json, Value};
-use self::rocket::State;
 use self::rocket::local::Client;
 use self::rocket::http::ContentType;
-use self::rocket::config::Environment;
 
 use std::sync::{Arc};
 
@@ -18,6 +16,7 @@ use command::*;
 use router;
 use util;
 use block;
+use utxo_set;
 
 #[post("/addr", format = "application/json", data = "<addrs>")]
 pub fn handle_addr(state: rocket::State<router::BlockState>, addrs: Json<Addr>) -> Json<Value> {
@@ -75,7 +74,66 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
     // add new transaction into mempool
     let mem_pool = state.mem_pool.clone();
     let mut mem_pool = mem_pool.lock().unwrap();
-    mem_pool.entry(txid).or_insert(ts);
+    mem_pool.entry(txid).or_insert(ts.clone());
+    
+    // local node addr
+    let local_node = state.local_node.clone();
+
+    // central node 
+    let known_nodes = state.known_nodes.clone();
+    let ref known_nodes = {
+        let know_nodes = known_nodes.lock().unwrap();
+        know_nodes.clone()
+    };
+    // TODO i don't knonw why do that
+    if local_node.to_lowercase() == known_nodes[0].to_lowercase() {
+        let txid = &ts.id;
+        for node in known_nodes {
+            send_inv(node, "tx", vec![txid.to_vec()]);
+        } 
+    }else {
+        let mining_addr = state.mining_address.clone();
+        loop{
+            if mem_pool.len() >=2 && mining_addr.len() >0 {
+                // mine transactions 
+                let mut txs = vec![];
+                let bc = state.bc.clone();
+                let cbtx = Transaction::new_coinbase_tx(mining_addr.to_lowercase(), "".to_owned()); 
+                txs.push(cbtx);
+                for (txid, ts) in &*mem_pool {
+                    if bc.verify_transaction(ts) {
+                        txs.push(ts.clone());
+                    } 
+                }
+                if txs.len() <= 1  {
+                    return ok_json!();
+                }
+
+                let new_block = bc.mine_block(&txs);
+                let utxo = utxo_set::UTXOSet::new(bc);
+                //reset unspend transations
+                // TODO use update instead of reindex 
+                utxo.reindex();
+                info!(LOG, "mining a new block, hash is {}", util::encode_hex(&new_block.hash));
+
+                // delete dirty transaction
+                for ts in &txs {
+                    mem_pool.remove(&util::encode_hex(&ts.id));
+                }
+
+                // notify other nodes 
+                // filter local node 
+                &known_nodes.into_iter().for_each(|node|{
+                    if *node != local_node.to_string() {
+                        send_inv(&node, "block", vec![new_block.hash.clone()])
+                    }
+                });
+            }
+            if mem_pool.len() <= 0 {
+                break;
+            }
+        }
+    }
     // TODO 
     ok_json!()
 }
@@ -184,18 +242,24 @@ fn request_blocks(know_nodes: Vec<String>) {
     }
 }
 
-fn send_get_data(address: &str, kind: String, id: Vec<u8>) {
+fn send_get_data(addr: &str, kind: String, id: Vec<u8>) {
     let data = GetData {
-        add_from: address.to_string(),
+        add_from: addr.to_string(),
         data_type: kind,
         id: id,
     };
     let data = serde_json::to_vec(&data).unwrap();
-    let path = format!("{}/get_data", address);
-    let res = send_data(address, &path, &data);
-    if res.is_ok() {
-        info!(LOG, "send get data successfully.");
-    }
+    let path = format!("{}/get_data", addr);
+    let res = send_data(addr, &path, &data);
+    print_http_result(addr.to_string() + "/get_data", res);
+}
+
+// path => /inv
+fn send_inv(addr: &str, kind: &str, items: Vec<Vec<u8>>) {
+    let inventory = Inv{add_from: addr.to_owned(), inv_type: kind.to_owned(), items: items};
+    let data = serde_json::to_vec(&inventory).unwrap();
+    let res = send_data(addr, "/inv", &data);
+    print_http_result(addr.to_string() + "/inv", res);
 }
 
 // path => /tx
@@ -204,7 +268,8 @@ fn send_tx(addr: &str, local_node: &str, block: &Transaction) {
         add_from: addr.to_owned(),
         transaction: serde_json::to_vec(block).unwrap(),
     }).unwrap();
-    send_data(addr, "/tx", &data);
+    let res = send_data(addr, "/tx", &data);
+    print_http_result(addr.to_string() + "/tx", res);
 }
 
 // path => /block
@@ -213,26 +278,17 @@ fn send_block(addr: &str, local_node: &str, block: block::Block) {
         add_from: addr.to_owned(),
         block: serde_json::to_vec(&block).unwrap(),
     }).unwrap();
-    send_data(local_node, "/block", &data);
+    let res = send_data(local_node, "/block", &data);
+    print_http_result(local_node.to_string() + "/block", res);
 }
 
 // path => /get_blocks
-fn send_get_block(address: &str) {
-    let request = GetBlock { add_from: address.to_string() };
+fn send_get_block(addr: &str) {
+    let request = GetBlock { add_from: addr.to_string() };
     let data = serde_json::to_vec(&request).unwrap();
-    let path = format!("{}/get_blocks", address);
-    let res = send_data(address, &path, &data);
-    if res.is_err() {
-        error!(LOG, "http request error {:?}", res.err());
-    } else {
-        debug!(LOG, "node {}: request({}) success", &address, &path);
-        debug!(
-            LOG,
-            "node {}: blocks: {}",
-            &address,
-            String::from_utf8_lossy(&res.unwrap())
-        );
-    }
+    let path = format!("{}/get_blocks", addr);
+    let res = send_data(addr, &path, &data);
+    print_http_result(addr.to_string() + "/get_blocks", res);
 }
 
 // send local node version to remote addr
@@ -240,13 +296,22 @@ fn send_get_block(address: &str) {
 fn send_version(addr: &str, local_node: &str, bc: Arc<BlockChain>) {
     let best_height = bc.get_best_height();
     let version = Version::new(NODE_VERSION, best_height, local_node.to_owned());
-    send_data(addr, "/version", &serde_json::to_vec(&version).unwrap());
+    let res = send_data(addr, "/version", &serde_json::to_vec(&version).unwrap());
+    print_http_result(addr.to_string() + "/version", res);
 }
 
 fn send_data(address: &str, path: &str, data: &[u8]) -> Result<Vec<u8>, String> {
     match rocket_post(address, path, data) {
         Some(data) => Ok(data),
         None => Err("data is nil".to_owned()),
+    }
+}
+
+fn print_http_result(uri: String, res: Result<Vec<u8>, String>) {
+    if res.is_ok() {
+        info!(LOG, "send get data successfully, URI:{}", uri);
+    }else {
+        error!(LOG, "send get data fail, URI:{}, err: {:?}", uri, res.err());
     }
 }
 
