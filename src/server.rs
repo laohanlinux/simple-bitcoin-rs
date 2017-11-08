@@ -6,6 +6,7 @@ extern crate lazy_static;
 use self::rocket_contrib::{Json, Value};
 use self::rocket::local::Client;
 use self::rocket::http::ContentType;
+use self::rocket::http::Status;
 
 use std::sync::{Arc};
 
@@ -40,9 +41,9 @@ pub fn handle_get_block_data(
 ) -> Json<Value> {
     let get_type = &block_data.data_type;
     let bc = state.bc.clone();
-    let block_hash = util::encode_hex(&block_data.id);
+    let block_hash = &block_data.id;
     if get_type == "block" {
-        let block = bc.get_block(&block_data.id);
+        let block = bc.get_block(&util::decode_hex(&block_data.id));
         if block.is_none() {
             return bad_json!();
         }
@@ -246,7 +247,7 @@ fn send_get_data(addr: &str, kind: String, id: Vec<u8>) {
     let data = GetData {
         add_from: addr.to_string(),
         data_type: kind,
-        id: id,
+        id: util::encode_hex(&id),
     };
     let data = serde_json::to_vec(&data).unwrap();
     let path = format!("{}/get_data", addr);
@@ -301,7 +302,12 @@ fn send_version(addr: &str, local_node: &str, bc: Arc<BlockChain>) {
 }
 
 fn send_data(address: &str, path: &str, data: &[u8]) -> Result<Vec<u8>, String> {
-    match rocket_post(address, path, data) {
+    let (status, body) = rocket_post(address, path, data);
+    if status != Status::Ok {
+        let msg = format!("status code is {}", status.code);
+        return Err(msg);
+    }
+    match body {
         Some(data) => Ok(data),
         None => Err("data is nil".to_owned()),
     }
@@ -309,13 +315,14 @@ fn send_data(address: &str, path: &str, data: &[u8]) -> Result<Vec<u8>, String> 
 
 fn print_http_result(uri: String, res: Result<Vec<u8>, String>) {
     if res.is_ok() {
-        info!(LOG, "send get data successfully, URI:{}", uri);
+        info!(LOG, "send get data successfully, URI => {}", uri);
     }else {
-        error!(LOG, "send get data fail, URI:{}, err: {:?}", uri, res.err());
+        error!(LOG, "send get data fail, URI => {}, err: {:?}", uri, res.err().unwrap());
     }
 }
 
-fn rocket_post(address: &str, path: &str, data: &[u8]) -> Option<Vec<u8>> {
+fn rocket_post(address: &str, path: &str, data: &[u8]) -> (Status, Option<Vec<u8>>) {
+    debug!(LOG, "address {}", address);
     let client = Client::new(rocket::ignite()).expect("valid rocket client");
     let req = client
         .post(path)
@@ -323,5 +330,5 @@ fn rocket_post(address: &str, path: &str, data: &[u8]) -> Option<Vec<u8>> {
         .remote(address.parse().unwrap())
         .body(data);
     let mut resp = req.dispatch();
-    resp.body_bytes()
+    (resp.status(), resp.body_bytes())
 }

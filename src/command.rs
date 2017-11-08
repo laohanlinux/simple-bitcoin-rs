@@ -38,7 +38,7 @@ pub struct GetBlock {
 pub struct GetData {
     pub add_from: String,
     pub data_type: String,
-    pub id: Vec<u8>,
+    pub id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]

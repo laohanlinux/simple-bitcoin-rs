@@ -1,63 +1,13 @@
-#![feature(plugin)]
-#![plugin(rocket_codegen)]
-
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate serde_json;
-#[macro_use]
-extern crate quick_error;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate runtime_fmt;
 #[macro_use]
 extern crate slog;
-#[macro_use]
-extern crate slog_term;
-#[macro_use]
+
 extern crate clap;
-#[macro_use]
-extern crate bigint;
-#[macro_use]
-extern crate prettytable;
-#[macro_use]
-extern crate validator_derive;
-#[macro_use]
-extern crate validator;
 
-#[macro_use]
-extern crate rocket_contrib;
-
-extern crate rocket;
-
-#[macro_use]
-pub mod comm;
+extern crate simple_bitcoin_rs;
 
 use clap::{Arg, App, SubCommand, ArgMatches};
-
-mod error;
-mod block;
-mod blockchain;
-mod utxo_set;
-mod wallet;
-mod wallets;
-mod db;
-mod util;
-mod merkle_tree;
-mod transaction;
-mod proof_of_work;
-mod http_server;
-mod cli;
-mod log;
-mod server;
-mod command;
-mod router;
-
-use log::*;
-//use server::Node;
-
-// takes_value() and default_value() to read values from arguments like --option=foo
+use simple_bitcoin_rs::log::*;
+use simple_bitcoin_rs::cli;
 
 const STORE: &str = "/tmp/block_chain";
 fn main() {
@@ -171,7 +121,7 @@ fn main() {
                     Arg::with_name("addr")
                         .long("addr")
                         .value_name("ADDR")
-                        .default_value("localhost"),
+                        .default_value("127.0.0.1"),
                 )
                 .arg(
                     Arg::with_name("port")
@@ -253,11 +203,11 @@ fn run_new(matches: &ArgMatches, wallet: &str) {
     cli::create_wallet(wallet.to_owned(), force);
 }
 
-fn run_add_wallet(matches: &ArgMatches, wallet: &str) {
+fn run_add_wallet(_: &ArgMatches, wallet: &str) {
     cli::add_wallet(wallet.to_owned());
 }
 
-fn run_open(matches: &ArgMatches, wallet: &str) {
+fn run_open(_: &ArgMatches, wallet: &str) {
     cli::open_wallet(wallet.to_owned());
 }
 
@@ -331,12 +281,12 @@ fn run_send(matches: &ArgMatches) {
 fn run_get_utxo(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
     let txid = matches.value_of("txid").unwrap();
-    cli::get_utxo(txid.to_owned(), store.to_owned());
+    cli::get_utxo(txid.to_owned(), store.to_owned()).unwrap();
 }
 
 fn run_get_utxos(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
-    cli::get_utxos(store.to_owned());
+    cli::get_utxos(store.to_owned()).unwrap();
 }
 
 fn run_list_transactions(matches: &ArgMatches) {

@@ -6,7 +6,6 @@ extern crate typemap;
 use self::prettytable::Table;
 use self::prettytable::row::Row;
 use self::prettytable::cell::Cell;
-use self::typemap::Key;
 
 use super::util;
 use super::log::*;
@@ -16,13 +15,11 @@ use super::blockchain::BlockChain;
 use super::utxo_set::UTXOSet;
 use super::proof_of_work::ProofOfWork;
 use super::transaction;
-use super::server;
 use super::router;
 
 use std::fs;
-use std::cell::{Ref, RefCell};
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::cell::{RefCell};
+use std::sync::{Arc};
 
 pub fn create_wallet(node: String, del_old: bool) {
     if del_old {
@@ -168,6 +165,7 @@ pub fn get_utxos(node: String) -> Result<(), String> {
     let utxos = db.get_all_with_prefix("utxo-");
     for kv in &utxos {
         let k_txid = util::encode_hex(&kv.0);
+        println!("{:?}", k_txid);
     }
     Ok(())
 }
@@ -248,7 +246,7 @@ pub fn send(
     };
     info!(LOG, "result: {:?}", result.id);
     {
-        let (txid, in_rows, out_rows) = result.to_string();
+        let (_, in_rows, out_rows) = result.to_string();
         let mut in_table = Table::new();
         let mut out_table = Table::new();
         in_rows.into_iter().for_each(

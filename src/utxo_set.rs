@@ -37,14 +37,6 @@ impl UTXOSet {
             let outs = TXOutputs::deserialize_outputs(&kv.1);
             for (out_idx, out) in &*outs.outputs {
                 if out.is_locked_with_key(pubkey_hash) && accumulated < amout {
-                    // debug!(
-                    //     LOG,
-                    //     "解锁:{:?} - 交易:{:?} - 索引:{:?} - 可用资产: {:?}",
-                    //     util::encode_hex(pubkey_hash),
-                    //     &txid,
-                    //     out_idx,
-                    //     out.value
-                    // );
                     accumulated += out.value;
                     unspent_outs.entry(txid.clone()).or_insert(vec![]).push(
                         *out_idx,
@@ -95,7 +87,7 @@ impl UTXOSet {
         }
         for kv in &kvs {
             db.delete(&kv.0, UTXO_BLOCK_PREFIX);
-            warn!(LOG, "delete key {:?}, {:?}", kv.0, &kv.1);
+            //warn!(LOG, "delete key {:?}, {:?}", kv.0, &kv.1);
         }
 
         let utxos = self.blockchain.find_utxo();
@@ -105,7 +97,7 @@ impl UTXOSet {
         }
 
         for kv in &utxos.unwrap() {
-            info!(LOG, "unspend utxo: {}", &kv.0);
+            info!(LOG, "unspend utxo: {}", &util::encode_hex(&kv.0));
             db.put_with_prefix(
                 &util::decode_hex(&kv.0),
                 &TXOutputs::serialize(&kv.1),
@@ -132,11 +124,11 @@ impl UTXOSet {
                     }
                     if update_outs.outputs.len() == 0 {
                         // the txid's outputs all spend, delete it from db
-                        debug!(LOG, "删除旧的utxo {}", util::encode_hex(&vin.txid));
+                        debug!(LOG, "delete old utxo {}", util::encode_hex(&vin.txid));
                         db.delete(&vin.txid, UTXO_BLOCK_PREFIX);
                     } else {
                         // update the outputs
-                        debug!(LOG, "更新utxo {}", util::encode_hex(&vin.txid));
+                        debug!(LOG, "update utxo {}", util::encode_hex(&vin.txid));
                         db.put_with_prefix(
                             &vin.txid,
                             &TXOutputs::serialize(&update_outs),
@@ -152,7 +144,7 @@ impl UTXOSet {
                 new_outputs.outputs.insert(out_idx, out.clone());
                 out_idx += 1;
             }
-            debug!(LOG, "增加新的UTXO {}", util::encode_hex(&tx.id));
+            //debug!(LOG, "增加新的UTXO {}", util::encode_hex(&tx.id));
             db.put_with_prefix(
                 &tx.id,
                 &TXOutputs::serialize(&new_outputs),
