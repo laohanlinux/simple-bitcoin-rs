@@ -1,5 +1,4 @@
 extern crate secp256k1;
-extern crate shio;
 
 use self::secp256k1::key::SecretKey;
 

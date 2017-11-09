@@ -2,7 +2,6 @@
 extern crate slog;
 
 extern crate clap;
-
 extern crate simple_bitcoin_rs;
 
 use clap::{Arg, App, SubCommand, ArgMatches};

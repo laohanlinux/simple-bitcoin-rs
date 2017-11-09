@@ -48,7 +48,10 @@ impl Block {
     pub fn deserialize_block(data: &Vec<u8>) -> Self {
         serde_json::from_slice(data).unwrap()
     }
-
+    
+    pub fn try_deserialize_block(data: &Vec<u8>) -> Result<Block, serde_json::Error> {
+        serde_json::from_slice(data)
+    }
 
     pub fn new_genesis_block(coinbase: Transaction) -> Self {
         let block: Block = Block::new(vec![coinbase], vec![], 0);

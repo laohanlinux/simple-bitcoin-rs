@@ -1,0 +1,1 @@
+curl -v -H "content-type: application/json" "http://127.0.0.1:8821/get_data" -d '{"add_from": "127.0.0.1:8821", "data_type": "block", "id": "0475366f7d421ff33e8659742c62901107741286d18bc74a608ac6d068fc1af8"}'

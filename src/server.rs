@@ -211,6 +211,7 @@ pub fn handle_block(
     state: rocket::State<router::BlockState>,
     block_data: Json<Block>,
 ) -> Json<Value> {
+    info!(LOG, "do block handle");
     let bc = state.bc.clone();
     let new_block = block::Block::deserialize_block(&block_data.block);
     let block_hash = new_block.hash.clone();
@@ -322,7 +323,7 @@ fn print_http_result(uri: String, res: Result<Vec<u8>, String>) {
 }
 
 fn rocket_post(address: &str, path: &str, data: &[u8]) -> (Status, Option<Vec<u8>>) {
-    debug!(LOG, "address {}", address);
+    debug!(LOG, "address {}, path {}, data {}", address, path, String::from_utf8_lossy(data));
     let client = Client::new(rocket::ignite()).expect("valid rocket client");
     let req = client
         .post(path)
