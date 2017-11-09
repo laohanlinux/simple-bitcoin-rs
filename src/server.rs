@@ -2,11 +2,13 @@ extern crate serde_json;
 extern crate rocket;
 extern crate rocket_contrib;
 extern crate lazy_static;
+extern crate tokio_core;
+extern crate tokio_request;
+extern crate url;
 
 use self::rocket_contrib::{Json, Value};
-use self::rocket::local::Client;
-use self::rocket::http::ContentType;
-use self::rocket::http::Status;
+use self::tokio_core::reactor::Core;
+use self::tokio_request::str::post;
 
 use std::sync::{Arc};
 
@@ -303,9 +305,9 @@ fn send_version(addr: &str, local_node: &str, bc: Arc<BlockChain>) {
 }
 
 fn send_data(address: &str, path: &str, data: &[u8]) -> Result<Vec<u8>, String> {
-    let (status, body) = rocket_post(address, path, data);
-    if status != Status::Ok {
-        let msg = format!("status code is {}", status.code);
+    let (status, body) = tokio_http_post(address, path, data);
+    if status != 200 {
+        let msg = format!("status code is {}", status);
         return Err(msg);
     }
     match body {
@@ -322,14 +324,18 @@ fn print_http_result(uri: String, res: Result<Vec<u8>, String>) {
     }
 }
 
-fn rocket_post(address: &str, path: &str, data: &[u8]) -> (Status, Option<Vec<u8>>) {
-    debug!(LOG, "address {}, path {}, data {}", address, path, String::from_utf8_lossy(data));
-    let client = Client::new(rocket::ignite()).expect("valid rocket client");
-    let req = client
-        .post(path)
-        .header(ContentType::JSON)
-        .remote(address.parse().unwrap())
-        .body(data);
-    let mut resp = req.dispatch();
-    (resp.status(), resp.body_bytes())
+fn tokio_http_post(addr: &str, path: &str, data: &[u8]) -> (u16, Option<Vec<u8>>){
+    debug!(LOG, "address {}, path {}, data {}", addr, path, String::from_utf8_lossy(data));
+    let addr = format!("http://{}{}", addr, path);
+    let mut evloop = Core::new().unwrap();
+    let future = post(&addr)
+        .header("content-type", "application/json")
+        .body(data.to_vec())
+        .send(evloop.handle());
+    let result = evloop.run(future).expect("HTTP Request failed!");
+    if result.is_success() == false {
+        return (result.status_code(), None);
+    }    
+    let body = result.body(); 
+    (200, Some(body.to_vec()))
 }
