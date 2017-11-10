@@ -48,5 +48,7 @@ pub fn init_router(addr: &str, port: u16, block_chain: BlockState)  {
         .mount("/", routes![server::handle_version])
         .mount("/", routes![server::handle_block])
         .mount("/", routes![server::handle_get_block_data])
+        .mount("/", routes![server::handle_generate_secrectkey])
+        .mount("/", routes![server::handle_valid_pubkey])
         .launch();
 }

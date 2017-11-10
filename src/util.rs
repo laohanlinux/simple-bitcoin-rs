@@ -14,7 +14,6 @@ use super::transaction;
 use super::error::Error;
 
 use self::bigint::U256;
-
 use self::sha2::{Sha256, Digest as Sha256Digest};
 use self::secp256k1::{Signature, Secp256k1, Message, ContextFlag};
 use self::secp256k1::key::{SecretKey, PublicKey};
@@ -22,7 +21,6 @@ use self::crypto::ripemd160;
 use self::crypto::digest::Digest as Ripemd160Digest;
 use self::crc::crc32;
 use self::rust_base58::{ToBase58, FromBase58};
-use self::compare::Compare;
 use self::rand::thread_rng;
 use self::quick_error::ResultExt;
 use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -32,7 +30,6 @@ use std::io::Cursor;
 use std::path::Path;
 use std::io::BufReader;
 use std::io::prelude::*;
-use std::cmp::Ordering::Equal;
 
 pub fn write_i64(num: i64) -> Vec<u8> {
     let mut buf = Vec::with_capacity(0);
@@ -185,6 +182,11 @@ pub fn packet_sign_content(tx: &transaction::Transaction) -> String {
 pub fn recover_secret_key(origin_secret_key: &[u8]) -> SecretKey {
     let s = Secp256k1::with_caps(ContextFlag::Full);
     SecretKey::from_slice(&s, origin_secret_key).unwrap()
+}
+
+pub fn try_recover_secret_key(origin_secret_key: &[u8]) -> Result<SecretKey, String>{
+    let s = Secp256k1::with_caps(ContextFlag::Full);
+    SecretKey::from_slice(&s, origin_secret_key).map_err(|e| {format!("{:}", e)})?;
 }
 
 pub fn new_key_pair() -> (SecretKey, PublicKey) {

@@ -13,7 +13,6 @@ use self::rand::thread_rng;
 
 use super::log::*;
 use super::util;
-use std::sync::{Arc, Mutex};
 
 const NETENV: u8 = 0u8;
 
@@ -38,6 +37,16 @@ impl Wallet {
     pub fn new_key_pair() -> (SecretKey, Vec<u8>) {
         let (secret_key, public_key) = util::new_key_pair();
         (secret_key, util::public_key_to_vec(&public_key, false))
+    }
+
+    pub fn recover_wallet(origin_secret_key: &[u8]) -> Result<Wallet, String> {
+        let secret_key = util::try_recover_secret_key(origin_secret_key).map_err(|e| format!("{:?}", e))?;
+        let secp = secp256k1::Secp256k1::with_caps(ContextFlag::Full);
+        let pub_key = PublicKey::from_secret_key(&secp, &secret_key).unwrap(); 
+        Ok(Wallet{
+            secret_key: secret_key,
+            public_key: pub_key,
+        })
     }
 
     // get bitcoin address
@@ -92,6 +101,10 @@ impl Wallet {
     pub fn hash_pubkey(public_key: &[u8]) -> Vec<u8> {
         let public_sha256 = util::sha256(public_key);
         util::encode_ripemd160(&public_sha256)
+    }
+    
+    pub fn serialize(&self) -> Vec<u8> {
+        serde_json::to_vec(self).unwrap()
     }
 }
 

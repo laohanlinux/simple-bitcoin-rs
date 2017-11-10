@@ -19,6 +19,14 @@ struct SignupData {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct Transfer {
+    pub from: String,
+    pub to: String,
+    pub secret_key: String,
+    pub amount: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Addr {
     pub addr_list: Vec<String>,
 }

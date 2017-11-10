@@ -11,6 +11,7 @@ use self::tokio_core::reactor::Core;
 use self::tokio_request::str::post;
 
 use std::sync::{Arc};
+use std::collections::HashMap;
 
 use transaction::Transaction;
 use log::*;
@@ -20,6 +21,60 @@ use router;
 use util;
 use block;
 use utxo_set;
+use wallet;
+
+#[get("/wallet/generate_secretkey")]
+pub fn handle_generate_secrectkey(state: rocket::State<router::BlockState>) -> Json<Value>{
+    let data = wallet::Wallet::new().serialize();
+    ok_data_json!(data)
+}
+
+#[get("/wallet/valid_pubkey/<pubkey>")]
+pub fn handle_valid_pubkey(state: rocket::State<router::BlockState>, pubkey: String) -> Json<Value> {
+    if wallet::Wallet::validate_address(pubkey.clone()) {
+        ok_json!()
+    }else {
+        bad_data_json!(format!("{} is invalid btc address", pubkey))
+    }
+}
+
+#[post("/wallet/transfer", format = "application/json", data = "<transfer>")]
+pub fn handle_transfer(state: rocket::State<router::BlockState>, 
+                       transfer: Json<Transfer>) -> Json<Value> {
+    
+    if !wallet::Wallet::validate_address(transfer.from.clone()) {
+        return bad_data_json!("ERROR: From's address is not valid".to_owned());
+    }
+    if !wallet::Wallet::validate_address(transfer.to.clone()) {
+        return bad_data_json!("ERROR: To's address is not valid".to_owned());
+    }
+    
+    let from_wallet = wallet::Wallet::recover_wallet(&util::decode_hex(transfer.secret_key));
+    if from_wallet.is_err() {
+        return bad_data_json!(from_wallet.err());
+    }
+    let from_wallet = from_wallet.unwrap();
+    let (to, amount) = (transfer.to, transfer.amount); 
+    let bc = state.bc.clone(); 
+    let utxo = utxo_set::UTXOSet::new(bc.clone());
+
+    let result =  Transaction::new_utxo_transaction(&from_wallet, to.clone(), amount as isize, &utxo);
+    let new_block = if mine_now {
+        let cbtx = transaction::Transaction::new_coinbase_tx(from.clone(), "".to_owned());
+        let txs = vec![cbtx, result];
+        let new_block = block_chain.clone().mine_block(&txs);
+        Some(new_block)
+    } else {
+        None
+    };
+    if new_block.is_none() {
+        return Err("ERROR: generate block fail".to_owned());
+    }
+    utxo.update(&new_block.unwrap());
+    info!(LOG, "{:?} send {} to {:?}", from, amount, to);
+    Ok(())
+
+}
 
 #[post("/addr", format = "application/json", data = "<addrs>")]
 pub fn handle_addr(state: rocket::State<router::BlockState>, addrs: Json<Addr>) -> Json<Value> {
@@ -215,8 +270,16 @@ pub fn handle_block(
 ) -> Json<Value> {
     info!(LOG, "do block handle");
     let bc = state.bc.clone();
-    let new_block = block::Block::deserialize_block(&block_data.block);
+    let new_block = block::Block::try_deserialize_block(&block_data.block);
+    if new_block.is_err() {
+        return bad_data_json!(new_block.err().unwrap());  
+    }
+    let new_block = new_block.ok().unwrap();
     let block_hash = new_block.hash.clone();
+    if bc.get_block(&block_hash).is_some(){
+        warn!(LOG, "block {} has exists, ignore it", util::encode_hex(&block_hash));
+        return ok_json!();
+    }
     bc.add_block(new_block.clone());
     info!(LOG, "added block {}", util::encode_hex(&block_hash));
 
