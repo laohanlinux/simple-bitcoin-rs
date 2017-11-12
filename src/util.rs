@@ -184,9 +184,9 @@ pub fn recover_secret_key(origin_secret_key: &[u8]) -> SecretKey {
     SecretKey::from_slice(&s, origin_secret_key).unwrap()
 }
 
-pub fn try_recover_secret_key(origin_secret_key: &[u8]) -> Result<SecretKey, String>{
+pub fn try_recover_secret_key(origin_secret_key: &[u8]) -> Result<SecretKey, String> {
     let s = Secp256k1::with_caps(ContextFlag::Full);
-    SecretKey::from_slice(&s, origin_secret_key).map_err(|e| {format!("{:}", e)})?;
+    SecretKey::from_slice(&s, origin_secret_key).map_err(|e| format!("{:}", e))
 }
 
 pub fn new_key_pair() -> (SecretKey, PublicKey) {

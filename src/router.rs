@@ -11,7 +11,7 @@ use std::collections::HashMap;
 pub struct BlockState {
     pub bc: Arc<BlockChain>,
     pub utxos: Arc<Mutex<utxo_set::UTXOSet>>,
-    pub known_nodes: Arc<Mutex<Vec<String>>>, 
+    pub known_nodes: Arc<Mutex<Vec<String>>>,
     pub mining_address: Arc<String>,
     pub block_in_transit: Arc<Mutex<Vec<Vec<u8>>>>,
     pub mem_pool: Arc<Mutex<HashMap<String, transaction::Transaction>>>,
@@ -23,7 +23,7 @@ impl BlockState {
         let arc_bc = Arc::new(bc);
         let utxo_set = utxo_set::UTXOSet::new(arc_bc.clone());
         utxo_set.reindex();
-        BlockState{
+        BlockState {
             bc: arc_bc,
             utxos: Arc::new(Mutex::new(utxo_set)),
             known_nodes: Arc::new(Mutex::new(vec![local_node.clone()])),
@@ -35,8 +35,9 @@ impl BlockState {
     }
 }
 
-pub fn init_router(addr: &str, port: u16, block_chain: BlockState)  {
-    let mut conf = rocket::Config::new(rocket::config::Environment::Production).expect("invalid config");
+pub fn init_router(addr: &str, port: u16, block_chain: BlockState) {
+    let mut conf = rocket::Config::new(rocket::config::Environment::Production)
+        .expect("invalid config");
     conf.set_address(addr).unwrap();
     conf.set_port(port);
     rocket::Rocket::custom(conf, true)

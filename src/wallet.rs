@@ -14,6 +14,8 @@ use self::rand::thread_rng;
 use super::log::*;
 use super::util;
 
+use std::collections::HashMap;
+
 const NETENV: u8 = 0u8;
 
 pub const ADDRESS_CHECKSUM_LEN: usize = 4;
@@ -106,8 +108,32 @@ impl Wallet {
     pub fn serialize(&self) -> Vec<u8> {
         serde_json::to_vec(self).unwrap()
     }
+    
+    pub fn to_vec(&self) -> (Vec<u8>, Vec<u8>) {
+        let serialize_vec = self.serialize();
+        let pair: HashMap<String, Vec<u8>> = serde_json::from_slice(&serialize_vec).unwrap();
+        let secret_key = pair.get("secret_key").unwrap();
+        let public_key = pair.get("public_key").unwrap();
+        (secret_key.clone(), public_key.clone())
+    }
+
+    pub fn to_btc_pair(&self) -> BTCPair {
+        let (secret_key, public_key) = self.to_vec();
+        let address = self.get_address();
+        BTCPair{
+            secret_key: secret_key,
+            public_key: public_key,
+            address: address,
+        }
+    }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BTCPair {
+    secret_key: Vec<u8>,
+    public_key: Vec<u8>,
+    address: String,
+}
 
 //#[cfg(test)]
 /*mod tests {
