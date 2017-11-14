@@ -72,6 +72,13 @@ pub fn create_blockchain(address: String, node: String) -> Result<(), String> {
     Ok(())
 }
 
+pub fn address_check(address: String) -> Result<(), String> {
+    if !Wallet::validate_address(address) {
+        return Err("address is invalid".to_owned());
+    }
+    Ok(())
+}
+
 pub fn list_address(node: String) -> Result<Vec<String>, String> {
     let wallets = Wallets::new_wallets(node).unwrap();
     Ok(wallets.list_address())
@@ -88,6 +95,7 @@ pub fn print_chain(node: String) -> Result<(), String> {
             Cell::new("Nonce"),
             Cell::new("PrevBlock"),
             Cell::new("Pow"),
+            Cell::new("timestamp"),
         ]));
         block_table.add_row(Row::new(vec![
             Cell::new(&util::encode_hex(&block.hash)),
@@ -99,12 +107,13 @@ pub fn print_chain(node: String) -> Result<(), String> {
                 ProofOfWork::new_proof_of_work(&block.clone())
                     .validate()
             )),
+            Cell::new(&format!("{}", &block.timestamp)),
         ]));
         println!("Block");
         block_table.printstd();
         let tx_number = RefCell::new(1);
         &block.transactions.into_iter().for_each(|tx| {
-            let (txid, in_rows, out_rows) = tx.to_string();
+            let (txid, in_rows, out_rows) = tx.to_string(true);
             let mut in_table = Table::new();
             let mut out_table = Table::new();
             in_rows.into_iter().for_each(|row| {
@@ -246,7 +255,7 @@ pub fn send(
     };
     info!(LOG, "result: {:?}", result.id);
     {
-        let (_, in_rows, out_rows) = result.to_string();
+        let (_, in_rows, out_rows) = result.to_string(true);
         let mut in_table = Table::new();
         let mut out_table = Table::new();
         in_rows.into_iter().for_each(

@@ -163,7 +163,7 @@ impl Transaction {
     }
 
     // String returns a human-readable representation of a transaction
-    pub fn to_string(&self) -> (String, Vec<Row>, Vec<Row>) {
+    pub fn to_string(&self, compress: bool) -> (String, Vec<Row>, Vec<Row>) {
         let txid = util::encode_hex(&self.id);
         let input_row = Row::new(vec![
             Cell::new("in's idx"),
@@ -183,12 +183,19 @@ impl Transaction {
 
         let mut idx = 0;
         for input in &self.vin {
-            let input_record = vec![
+            let (mut signature, mut pub_key) = (util::encode_hex(input.signature.clone()), util::encode_hex(input.pub_key.clone())); 
+            if compress {
+                if input.signature.len() > 0 && compress{
+                    signature = signature[..32].to_owned() + "..."; 
+                }
+                pub_key = pub_key[..32].to_owned() + "...";
+            }
+            let mut input_record = vec![
                 Cell::new(&format!("{}", idx)),
                 Cell::new(&util::encode_hex(&input.txid)),
                 Cell::new(&format!("{}", input.vout)),
-                Cell::new(&util::encode_hex(&input.signature)),
-                Cell::new(&util::encode_hex(&input.pub_key)),
+                Cell::new(&signature),
+                Cell::new(&pub_key),
             ];
             input_records.push(Row::new(input_record));
             idx += 1;

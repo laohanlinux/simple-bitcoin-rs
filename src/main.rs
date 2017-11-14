@@ -45,6 +45,16 @@ fn main() {
                 ),
         )
         .subcommand(
+            SubCommand::with_name("address_check")
+                .about("check a address")
+                .arg(
+                    Arg::with_name("address")
+                    .short("addr")
+                    .long("address")
+                    .value_name("ADDRESS")
+                )
+        )
+        .subcommand(
             SubCommand::with_name("add_wallet")
                 .about("add a new wallet")
                 .arg(
@@ -175,6 +185,7 @@ fn run(matches: ArgMatches) -> Result<(), String> {
             Ok(run_open(m, config))
         }
         ("create_blockchain", Some(m)) => Ok(run_create_blockchain(m)),
+        ("address_check", Some(m)) => Ok(run_address_check(m)),
         ("print", Some(m)) => Ok(run_print(m)),
         ("reindex", Some(m)) => Ok(run_reindex(m)),
         ("balance", Some(m)) => Ok(run_get_balance(m)),
@@ -216,6 +227,14 @@ fn run_create_blockchain(matches: &ArgMatches) {
     match cli::create_blockchain(address.to_owned(), store.to_owned()) {
         Ok(_) => {}
         Err(e) => println!("{}", e),
+    }
+}
+
+fn run_address_check(matches: &ArgMatches) {
+    let address = matches.value_of("address").unwrap();
+    match cli::address_check(address.to_owned()) {
+        Ok(_) => print!("{} is valid", address),
+        Err(e) => println!("{}",e), 
     }
 }
 

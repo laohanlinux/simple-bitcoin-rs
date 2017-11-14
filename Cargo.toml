@@ -34,6 +34,7 @@ hyper = "0.11"
 typemap = "*"
 validator_derive = "^0.6.0"
 validator = "^0.6.0"
+base64 = "*"
 
 rocket = "0.3.3"
 rocket_codegen = "0.3.3"

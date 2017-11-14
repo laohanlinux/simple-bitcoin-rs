@@ -9,6 +9,7 @@ extern crate rand;
 extern crate quick_error;
 extern crate byteorder;
 extern crate bigint;
+extern crate base64;
 
 use super::transaction;
 use super::error::Error;
@@ -24,6 +25,7 @@ use self::rust_base58::{ToBase58, FromBase58};
 use self::rand::thread_rng;
 use self::quick_error::ResultExt;
 use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use self::base64::{encode as encode64, decode as decode64};
 
 use std::fs::{File, OpenOptions};
 use std::io::Cursor;
@@ -125,6 +127,14 @@ pub fn encode_base58(payload: &[u8]) -> String {
 
 pub fn decode_base58(payload: String) -> Vec<u8> {
     payload.from_base58().unwrap()
+}
+
+pub fn encode_base64<T: AsRef<[u8]>>(data: T) -> String {
+    encode64(&data)
+}
+
+pub fn decode_base64(data: &str) -> Vec<u8> {
+    decode64(data).unwrap()
 }
 
 pub fn encode_hex<T: AsRef<[u8]>>(data: T) -> String {
