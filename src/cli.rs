@@ -16,10 +16,11 @@ use super::utxo_set::UTXOSet;
 use super::proof_of_work::ProofOfWork;
 use super::transaction;
 use super::router;
+use super::server;
 
 use std::fs;
 use std::cell::{RefCell};
-use std::sync::{Arc};
+use std::sync::{Arc, Mutex};
 
 pub fn create_wallet(node: String, del_old: bool) {
     if del_old {
@@ -231,13 +232,14 @@ pub fn list_transactions(node: String) -> Result<(), String> {
     Ok(())
 }
 
-
 pub fn send(
     from: String,
     to: String,
     amount: isize,
     wallet_store: String,
     node: String,
+    central_node: String,
+    local_addr: String,
     mine_now: bool,
 ) -> Result<(), String> {
     if !Wallet::validate_address(from.clone()) {
@@ -248,14 +250,14 @@ pub fn send(
     }
     let block_chain = Arc::new(BlockChain::new_blockchain(node.clone()));
     let utxo = UTXOSet::new(block_chain.clone());
-    let result = {
+    let tx = {
         let wallets = Wallets::new_wallets(wallet_store).unwrap();
         let from_wallet = wallets.get_wallet(from.clone()).unwrap();
         transaction::Transaction::new_utxo_transaction(&from_wallet, to.clone(), amount, &utxo)?
     };
-    info!(LOG, "result: {:?}", result.id);
+    info!(LOG, "result: {:?}", tx.id);
     {
-        let (_, in_rows, out_rows) = result.to_string(true);
+        let (_, in_rows, out_rows) = tx.to_string(true);
         let mut in_table = Table::new();
         let mut out_table = Table::new();
         in_rows.into_iter().for_each(
@@ -269,26 +271,26 @@ pub fn send(
         println!("Outputs");
         out_table.printstd();
     }
-    let new_block = if mine_now {
+
+    if mine_now {
         let cbtx = transaction::Transaction::new_coinbase_tx(from.clone(), "".to_owned());
-        let txs = vec![cbtx, result];
+        let txs = vec![cbtx, tx];
         let new_block = block_chain.clone().mine_block(&txs);
-        Some(new_block)
-    } else {
-        None
-    };
-    if new_block.is_none() {
-        return Err("ERROR: generate block fail".to_owned());
+        utxo.update(&new_block);
+        info!(LOG, "{:?} send {} to {:?}", from, amount, to);
+        return Ok(());
     }
-    utxo.update(&new_block.unwrap());
+    
+    let known_nodes = Arc::new(Mutex::new(vec![central_node.clone()]));
+    server::send_tx(known_nodes, &central_node, &local_addr, &tx);
     info!(LOG, "{:?} send {} to {:?}", from, amount, to);
     Ok(())
 }
 
-pub fn start_server(node: String, addr: &str, port: u16) {
+pub fn start_server(node: String, central_node: String, mining_addr: String, addr: &str, port: u16) {
     let block_chain = BlockChain::new_blockchain(node);
     let local_node = format!("{}:{}", &addr, port);
-    let mining_address = "".to_owned();
-    let block_state = router::BlockState::new(block_chain, local_node, mining_address);
+    let block_state = router::BlockState::new(block_chain, local_node,
+                                              central_node.clone(), mining_addr);
     router::init_router(addr, port, block_state);
 }

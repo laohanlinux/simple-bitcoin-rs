@@ -19,14 +19,14 @@ pub struct BlockState {
 }
 
 impl BlockState {
-    pub fn new(bc: BlockChain, local_node: String, mining_address: String) -> BlockState {
+    pub fn new(bc: BlockChain, local_node: String, central_node: String, mining_address: String) -> BlockState {
         let arc_bc = Arc::new(bc);
         let utxo_set = utxo_set::UTXOSet::new(arc_bc.clone());
         utxo_set.reindex();
         BlockState {
             bc: arc_bc,
             utxos: Arc::new(Mutex::new(utxo_set)),
-            known_nodes: Arc::new(Mutex::new(vec![local_node.clone()])),
+            known_nodes: Arc::new(Mutex::new(vec![central_node, local_node.clone()])),
             mining_address: Arc::new(mining_address),
             block_in_transit: Arc::new(Mutex::new(vec![])),
             mem_pool: Arc::new(Mutex::new(HashMap::new())),

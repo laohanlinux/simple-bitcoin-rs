@@ -17,6 +17,7 @@ extern crate runtime_fmt;
 
 #[macro_use]
 extern crate slog;
+
 #[macro_use]
 extern crate slog_term;
 

@@ -9,6 +9,8 @@ use simple_bitcoin_rs::log::*;
 use simple_bitcoin_rs::cli;
 
 const STORE: &str = "/tmp/block_chain";
+const CENTRAL_NODE: &str = "127.0.0.1:3000";
+
 fn main() {
     let matches = App::new("bitcoin")
         .version("0.1")
@@ -136,7 +138,13 @@ fn main() {
                     Arg::with_name("port")
                         .long("port")
                         .value_name("PORT")
-                        .default_value("8821"),
+                        .default_value("3000"),
+                )
+                .arg(
+                    Arg::with_name("central_node")
+                        .long("central_node")
+                        .value_name("CENTRAL_NODE")
+                        .default_value(CENTRAL_NODE),
                 ),
         )
         .subcommand(
@@ -157,6 +165,18 @@ fn main() {
                         .long("mine")
                         .default_value("false")
                         .value_name("mine"),
+                )
+                .arg(
+                    Arg::with_name("central_node")
+                        .long("central_node")
+                        .value_name("CENTRAL_NODE")
+                        .default_value(CENTRAL_NODE),
+                )
+                .arg(
+                    Arg::with_name("mining_addr")
+                        .long("mining_addr")
+                        .value_name("MINING_ADDR")
+                        .default_value("")
                 ),
         )
         .subcommand(
@@ -205,7 +225,10 @@ fn run_server(mathes: &ArgMatches) {
     let store = mathes.value_of("store").unwrap();
     let addr = mathes.value_of("addr").unwrap();
     let port = mathes.value_of("port").unwrap().parse::<u16>().unwrap();
-    cli::start_server(store.to_owned(), &addr, port);
+    let central_node = mathes.value_of("central_node").unwrap();
+    let mining_addr = mathes.value_of("mining_addr").unwrap();
+    cli::start_server(store.to_owned(), central_node.to_owned(), 
+                      mining_addr.to_owned(), &addr, port);
 }
 
 fn run_new(matches: &ArgMatches, wallet: &str) {
@@ -277,6 +300,7 @@ fn run_send(matches: &ArgMatches) {
     let wallet_store = matches.value_of("wallet").unwrap();
     let from = matches.value_of("from").unwrap();
     let to = matches.value_of("to").unwrap();
+    let central_node = matches.value_of("central_node").unwrap();
     let amount = matches
         .value_of("amount")
         .unwrap()
@@ -289,6 +313,7 @@ fn run_send(matches: &ArgMatches) {
         amount,
         wallet_store.to_owned(),
         store.to_owned(),
+        central_node.to_owned(),
         mine,
     ) {
         Ok(_) => {}
