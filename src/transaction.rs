@@ -183,10 +183,13 @@ impl Transaction {
 
         let mut idx = 0;
         for input in &self.vin {
-            let (mut signature, mut pub_key) = (util::encode_hex(input.signature.clone()), util::encode_hex(input.pub_key.clone())); 
+            let (mut signature, mut pub_key) = (
+                util::encode_hex(input.signature.clone()),
+                util::encode_hex(input.pub_key.clone()),
+            );
             if compress {
-                if input.signature.len() > 0 && compress{
-                    signature = signature[..32].to_owned() + "..."; 
+                if input.signature.len() > 0 && compress {
+                    signature = signature[..32].to_owned() + "...";
                 }
                 pub_key = pub_key[..32].to_owned() + "...";
             }

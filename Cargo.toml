@@ -35,6 +35,8 @@ typemap = "*"
 validator_derive = "^0.6.0"
 validator = "^0.6.0"
 base64 = "*"
+threadpool = "1.0"
+io-context = "0.2.0"
 
 rocket = "0.3.3"
 rocket_codegen = "0.3.3"

@@ -72,10 +72,10 @@ pub struct Version {
 
 impl Version {
     pub fn new(ver: isize, best_height: isize, addr_from: String) -> Version {
-        Version{
+        Version {
             version: ver,
             best_height: best_height,
             addr_from: addr_from,
-        } 
-    }    
+        }
+    }
 }

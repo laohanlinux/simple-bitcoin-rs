@@ -19,7 +19,7 @@ use super::router;
 use super::server;
 
 use std::fs;
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 pub fn create_wallet(node: String, del_old: bool) {
@@ -110,6 +110,9 @@ pub fn print_chain(node: String) -> Result<(), String> {
             )),
             Cell::new(&format!("{}", &block.timestamp)),
         ]));
+        for i in 0..3 {
+            println!("");
+        }
         println!("Block");
         block_table.printstd();
         let tx_number = RefCell::new(1);
@@ -280,17 +283,23 @@ pub fn send(
         info!(LOG, "{:?} send {} to {:?}", from, amount, to);
         return Ok(());
     }
-    
+
     let known_nodes = Arc::new(Mutex::new(vec![central_node.clone()]));
     server::send_tx(known_nodes, &central_node, &local_addr, &tx);
     info!(LOG, "{:?} send {} to {:?}", from, amount, to);
     Ok(())
 }
 
-pub fn start_server(node: String, central_node: String, mining_addr: String, addr: &str, port: u16) {
+pub fn start_server(
+    node: String,
+    central_node: String,
+    mining_addr: String,
+    addr: &str,
+    port: u16,
+) {
     let block_chain = BlockChain::new_blockchain(node);
     let local_node = format!("{}:{}", &addr, port);
-    let block_state = router::BlockState::new(block_chain, local_node,
-                                              central_node.clone(), mining_addr);
+    let block_state =
+        router::BlockState::new(block_chain, local_node, central_node.clone(), mining_addr);
     router::init_router(addr, port, block_state);
 }

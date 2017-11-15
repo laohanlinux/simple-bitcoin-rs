@@ -42,10 +42,14 @@ impl Wallet {
     }
 
     pub fn recover_wallet(origin_secret_key: &[u8]) -> Result<Wallet, String> {
-        let secret_key = util::try_recover_secret_key(origin_secret_key).map_err(|e| format!("{:?}", e))?;
+        let secret_key = util::try_recover_secret_key(origin_secret_key).map_err(
+            |e| {
+                format!("{:?}", e)
+            },
+        )?;
         let secp = secp256k1::Secp256k1::with_caps(ContextFlag::Full);
-        let pub_key = PublicKey::from_secret_key(&secp, &secret_key).unwrap(); 
-        Ok(Wallet{
+        let pub_key = PublicKey::from_secret_key(&secp, &secret_key).unwrap();
+        Ok(Wallet {
             secret_key: secret_key,
             public_key: pub_key,
         })
@@ -104,11 +108,11 @@ impl Wallet {
         let public_sha256 = util::sha256(public_key);
         util::encode_ripemd160(&public_sha256)
     }
-    
+
     pub fn serialize(&self) -> Vec<u8> {
         serde_json::to_vec(self).unwrap()
     }
-    
+
     pub fn to_vec(&self) -> (Vec<u8>, Vec<u8>) {
         let serialize_vec = self.serialize();
         let pair: HashMap<String, Vec<u8>> = serde_json::from_slice(&serialize_vec).unwrap();
@@ -120,7 +124,7 @@ impl Wallet {
     pub fn to_btc_pair(&self) -> BTCPair {
         let (secret_key, public_key) = self.to_vec();
         let address = self.get_address();
-        BTCPair{
+        BTCPair {
             secret_key: secret_key,
             public_key: public_key,
             address: address,

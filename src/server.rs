@@ -45,7 +45,6 @@ pub fn handle_transfer(
     state: rocket::State<router::BlockState>,
     transfer: Json<Transfer>,
 ) -> Json<Value> {
-
     if !wallet::Wallet::validate_address(transfer.from.clone()) {
         return bad_data_json!("ERROR: From's address is not valid".to_owned());
     }
@@ -58,27 +57,17 @@ pub fn handle_transfer(
         return bad_data_json!(from_wallet.err());
     }
     let from_wallet = from_wallet.unwrap();
-    let (to, amount) = (&transfer.to, &transfer.amount);
+    let (to, amount) = (&transfer.to, transfer.amount as isize);
     let bc = state.bc.clone();
     let utxo = utxo_set::UTXOSet::new(bc.clone());
-
-    //let result =  Transaction::new_utxo_transaction(&from_wallet, to.clone(), amount as isize, &utxo);
-    // TODO broabow all node, ( node will add the transaction into transaction memory pool)
-
-    /*let new_block = if mine_now {
-        let cbtx = transaction::Transaction::new_coinbase_tx(from.clone(), "".to_owned());
-        let txs = vec![cbtx, result];
-        let new_block = block_chain.clone().mine_block(&txs);
-        Some(new_block)
-    } else {
-        None
+    let tx = Transaction::new_utxo_transaction(&from_wallet, to.to_owned(), amount, &utxo).unwrap();
+    let local_addr = state.local_node.clone();
+    let known_nodes = state.known_nodes.clone();
+    let central_node = {
+        let known_nodes = known_nodes.lock().unwrap();
+        known_nodes[0].clone()
     };
-    if new_block.is_none() {
-        return Err("ERROR: generate block fail".to_owned());
-    }
-    utxo.update(&new_block.unwrap());
-    info!(LOG, "{:?} send {} to {:?}", from, amount, to);
-    */
+    send_tx(known_nodes, &central_node, &local_addr, &tx);
     ok_json!()
 }
 
@@ -122,16 +111,17 @@ pub fn handle_get_block_data(
         let tx = {
             let mem_pool = state.mem_pool.clone();
             let mem_pool = mem_pool.lock().unwrap();
-            mem_pool.get(&txid)
+            let tx = mem_pool.get(&txid);
+            if tx.is_none() {
+                return ok_json!();
+            }
+            tx.unwrap().clone()
         };
-        if tx.is_none(){
-            return ok_json!();
-        }
         send_tx(
             state.known_nodes.clone(),
             &block_data.add_from,
             &local_node,
-            &tx.unwrap(),
+            &tx,
         );
     }
 
@@ -156,14 +146,20 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
         let know_nodes = known_nodes.lock().unwrap();
         know_nodes.clone()
     };
-    // the local node is central node, it just do forward the new transactions to other nodes in the network. 
+    // the local node is central node, it just do forward the new transactions to other nodes in the network.
     if local_node.to_lowercase() == known_nodes[0].to_lowercase() {
         let txid = &ts.id;
         for node in known_nodes {
-            send_inv(state.known_nodes.clone(), node, &local_node, "tx", vec![txid.to_vec()]);
+            send_inv(
+                state.known_nodes.clone(),
+                node,
+                &local_node,
+                "tx",
+                vec![txid.to_vec()],
+            );
         }
     } else {
-        // the local node is a mining node, start to mining! 
+        // the local node is a mining node, start to mining!
         let mining_addr = state.mining_address.clone();
         loop {
             if mem_pool.len() >= 2 && mining_addr.len() > 0 {
@@ -372,7 +368,13 @@ fn send_get_data(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, kind: String,
 }
 
 // path => /inv
-fn send_inv(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, local_node: &str, kind: &str, items: Vec<Vec<u8>>) {
+fn send_inv(
+    known_nodes: Arc<Mutex<Vec<String>>>,
+    addr: &str,
+    local_node: &str,
+    kind: &str,
+    items: Vec<Vec<u8>>,
+) {
     let inventory = Inv {
         add_from: local_node.to_owned(),
         inv_type: kind.to_owned(),
@@ -459,7 +461,7 @@ fn send_data(
             |ref node| node != address,
         );
         if flag {
-            
+
             known_nodes.append(&mut vec![address.to_string()]);
         }
     }

@@ -53,7 +53,7 @@ mod proof_of_work;
 mod server;
 mod command;
 mod router;
+mod pool;
 
 pub mod cli;
 pub mod log;
-

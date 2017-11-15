@@ -51,10 +51,10 @@ fn main() {
                 .about("check a address")
                 .arg(
                     Arg::with_name("address")
-                    .short("addr")
-                    .long("address")
-                    .value_name("ADDRESS")
-                )
+                        .short("addr")
+                        .long("address")
+                        .value_name("ADDRESS"),
+                ),
         )
         .subcommand(
             SubCommand::with_name("add_wallet")
@@ -173,10 +173,16 @@ fn main() {
                         .default_value(CENTRAL_NODE),
                 )
                 .arg(
+                    Arg::with_name("local_addr")
+                        .long("local_addr")
+                        .value_name("LOCAL_ADDR")
+                        .default_value(""),
+                )
+                .arg(
                     Arg::with_name("mining_addr")
                         .long("mining_addr")
                         .value_name("MINING_ADDR")
-                        .default_value("")
+                        .default_value(""),
                 ),
         )
         .subcommand(
@@ -227,8 +233,13 @@ fn run_server(mathes: &ArgMatches) {
     let port = mathes.value_of("port").unwrap().parse::<u16>().unwrap();
     let central_node = mathes.value_of("central_node").unwrap();
     let mining_addr = mathes.value_of("mining_addr").unwrap();
-    cli::start_server(store.to_owned(), central_node.to_owned(), 
-                      mining_addr.to_owned(), &addr, port);
+    cli::start_server(
+        store.to_owned(),
+        central_node.to_owned(),
+        mining_addr.to_owned(),
+        &addr,
+        port,
+    );
 }
 
 fn run_new(matches: &ArgMatches, wallet: &str) {
@@ -257,7 +268,7 @@ fn run_address_check(matches: &ArgMatches) {
     let address = matches.value_of("address").unwrap();
     match cli::address_check(address.to_owned()) {
         Ok(_) => print!("{} is valid", address),
-        Err(e) => println!("{}",e), 
+        Err(e) => println!("{}", e), 
     }
 }
 
@@ -301,6 +312,7 @@ fn run_send(matches: &ArgMatches) {
     let from = matches.value_of("from").unwrap();
     let to = matches.value_of("to").unwrap();
     let central_node = matches.value_of("central_node").unwrap();
+    let local_node = matches.value_of("local_addr").unwrap();
     let amount = matches
         .value_of("amount")
         .unwrap()
@@ -314,6 +326,7 @@ fn run_send(matches: &ArgMatches) {
         wallet_store.to_owned(),
         store.to_owned(),
         central_node.to_owned(),
+        local_node.to_owned(),
         mine,
     ) {
         Ok(_) => {}

@@ -1,11 +1,16 @@
 extern crate rocket;
+extern crate io_context;
+extern crate threadpool;
 
-use super::blockchain::BlockChain;
+use self::io_context::Context;
+use self::threadpool::ThreadPool;
+
+use blockchain::BlockChain;
 use server;
 use transaction;
 use utxo_set;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::collections::HashMap;
 
 pub struct BlockState {
@@ -16,13 +21,20 @@ pub struct BlockState {
     pub block_in_transit: Arc<Mutex<Vec<Vec<u8>>>>,
     pub mem_pool: Arc<Mutex<HashMap<String, transaction::Transaction>>>,
     pub local_node: Arc<String>,
+    pub ctx: Context,
 }
 
 impl BlockState {
-    pub fn new(bc: BlockChain, local_node: String, central_node: String, mining_address: String) -> BlockState {
+    pub fn new(
+        bc: BlockChain,
+        local_node: String,
+        central_node: String,
+        mining_address: String,
+    ) -> BlockState {
         let arc_bc = Arc::new(bc);
         let utxo_set = utxo_set::UTXOSet::new(arc_bc.clone());
         utxo_set.reindex();
+        let mut ctx = Context::background();
         BlockState {
             bc: arc_bc,
             utxos: Arc::new(Mutex::new(utxo_set)),
@@ -31,6 +43,7 @@ impl BlockState {
             block_in_transit: Arc::new(Mutex::new(vec![])),
             mem_pool: Arc::new(Mutex::new(HashMap::new())),
             local_node: Arc::new(local_node),
+            ctx: Context::background(),
         }
     }
 }
