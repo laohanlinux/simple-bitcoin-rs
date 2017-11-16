@@ -1,8 +1,6 @@
 extern crate tempdir;
 extern crate rocksdb;
 
-use super::util;
-
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
@@ -62,6 +60,3 @@ impl DBStore {
     }
 }
 
-fn cba(input: &Box<[u8]>) -> Box<[u8]> {
-    input.iter().cloned().collect::<Vec<_>>().into_boxed_slice()
-}

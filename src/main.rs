@@ -8,6 +8,8 @@ use clap::{Arg, App, SubCommand, ArgMatches};
 use simple_bitcoin_rs::log::*;
 use simple_bitcoin_rs::cli;
 
+use std::thread;
+
 const STORE: &str = "/tmp/block_chain";
 const CENTRAL_NODE: &str = "127.0.0.1:3000";
 
@@ -145,6 +147,18 @@ fn main() {
                         .long("central_node")
                         .value_name("CENTRAL_NODE")
                         .default_value(CENTRAL_NODE),
+                )
+                .arg(
+                    Arg::with_name("mining_addr")
+                        .long("mining_addr")
+                        .value_name("MINING_ADDR")
+                        .default_value(""),
+                )
+                .arg(
+                    Arg::with_name("node_role")
+                        .long("node_role")
+                        .value_name("NODE_ROLE")
+                        .default_value(""),
                 ),
         )
         .subcommand(
@@ -194,8 +208,6 @@ fn main() {
     if let Err(e) = run(matches) {
         error!(LOG, "{}", e);
     }
-
-
 }
 
 fn run(matches: ArgMatches) -> Result<(), String> {
@@ -225,21 +237,6 @@ fn run(matches: ArgMatches) -> Result<(), String> {
     }
 
 
-}
-
-fn run_server(mathes: &ArgMatches) {
-    let store = mathes.value_of("store").unwrap();
-    let addr = mathes.value_of("addr").unwrap();
-    let port = mathes.value_of("port").unwrap().parse::<u16>().unwrap();
-    let central_node = mathes.value_of("central_node").unwrap();
-    let mining_addr = mathes.value_of("mining_addr").unwrap();
-    cli::start_server(
-        store.to_owned(),
-        central_node.to_owned(),
-        mining_addr.to_owned(),
-        &addr,
-        port,
-    );
 }
 
 fn run_new(matches: &ArgMatches, wallet: &str) {
@@ -349,3 +346,21 @@ fn run_list_transactions(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
     cli::list_transactions(store.to_owned()).unwrap();
 }
+
+fn run_server(mathes: &ArgMatches) {
+    let store = mathes.value_of("store").unwrap().to_owned();
+    let addr = mathes.value_of("addr").unwrap().to_owned();
+    let port = mathes.value_of("port").unwrap().to_owned().parse::<u16>().unwrap();
+    let central_node = mathes.value_of("central_node").unwrap().to_owned();
+    let node_role = mathes.value_of("node_role").unwrap().to_owned();
+    let mining_addr = mathes.value_of("mining_addr").unwrap().to_owned();
+    cli::start_server(
+        store,
+        node_role,
+        central_node,
+        mining_addr,
+        addr,
+        port,
+    );
+}
+

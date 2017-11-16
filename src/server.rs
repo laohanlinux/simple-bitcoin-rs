@@ -2,13 +2,8 @@ extern crate serde_json;
 extern crate rocket;
 extern crate rocket_contrib;
 extern crate lazy_static;
-extern crate tokio_core;
-extern crate tokio_request;
-extern crate url;
 
 use self::rocket_contrib::{Json, Value};
-use self::tokio_core::reactor::Core;
-use self::tokio_request::str::post;
 
 use std::sync::{Arc, Mutex};
 
@@ -21,6 +16,7 @@ use util;
 use block;
 use utxo_set;
 use wallet;
+use pool;
 
 #[get("/wallet/generate_secretkey")]
 pub fn handle_generate_secrectkey(state: rocket::State<router::BlockState>) -> Json<Value> {
@@ -76,9 +72,12 @@ pub fn handle_addr(state: rocket::State<router::BlockState>, addrs: Json<Addr>) 
     let local_node = state.local_node.clone();
     {
         let known_nodes_lock = state.known_nodes.clone();
-        let mut know_nodes = known_nodes_lock.lock().unwrap();
-        know_nodes.append(&mut addrs.into_inner().addr_list);
-        info!(LOG, "There are {} known nodes now", know_nodes.len());
+        let mut known_nodes = known_nodes_lock.lock().unwrap();
+        let exist = known_nodes.clone().into_iter().all(|node| node != local_node.to_string());
+        if !exist {
+            known_nodes.append(&mut addrs.into_inner().addr_list);
+        } 
+        info!(LOG, "There are {} known nodes now", known_nodes.len());
     }
     request_blocks(state.known_nodes.clone(), &local_node);
     ok_json!()
@@ -241,6 +240,7 @@ pub fn handle_version(
         send_version(
             state.known_nodes.clone(),
             &version.addr_from,
+            "/version",
             &local_node,
             bc,
         );
@@ -363,8 +363,18 @@ fn send_get_data(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, kind: String,
     };
     let data = serde_json::to_vec(&data).unwrap();
     let path = format!("{}/get_data", addr);
-    let res = send_data(known_nodes, addr, &path, &data);
-    print_http_result(addr.to_string() + "/get_data", res);
+    send_data(known_nodes, addr, &path, &data);
+}
+
+// path 
+pub fn send_addr(know_nodes: Arc<Mutex<Vec<String>>>,
+    addr: &str,
+    addr_list: Vec<String>){
+    let join_cluster = Addr{
+        addr_list: addr_list,
+    };
+    let data = serde_json::to_vec(&join_cluster).unwrap();
+    send_data(know_nodes, addr, "/addr", &data);
 }
 
 // path => /inv
@@ -381,8 +391,7 @@ fn send_inv(
         items: items,
     };
     let data = serde_json::to_vec(&inventory).unwrap();
-    let res = send_data(known_nodes, addr, "/inv", &data);
-    print_http_result(addr.to_string() + "/inv", res);
+    send_data(known_nodes, addr, "/inv", &data);
 }
 
 // path => /tx
@@ -396,8 +405,7 @@ pub fn send_tx(
         add_from: local_node.to_owned(),
         transaction: serde_json::to_vec(tx).unwrap(),
     }).unwrap();
-    let res = send_data(known_nodes, addr, "/tx", &data);
-    print_http_result(addr.to_string() + "/tx", res);
+    send_data(known_nodes, addr, "/tx", &data);
 }
 
 // path => /block
@@ -411,8 +419,7 @@ fn send_block(
         add_from: addr.to_owned(),
         block: serde_json::to_vec(&block).unwrap(),
     }).unwrap();
-    let res = send_data(known_nodes, local_node, "/block", &data);
-    print_http_result(local_node.to_string() + "/block", res);
+    send_data(known_nodes, local_node, "/block", &data);
 }
 
 // path => /get_blocks
@@ -420,8 +427,7 @@ fn send_get_block(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, local_node: 
     let request = GetBlock { add_from: local_node.to_owned() };
     let data = serde_json::to_vec(&request).unwrap();
     let path = format!("{}/get_blocks", addr);
-    let res = send_data(known_nodes, addr, &path, &data);
-    print_http_result(addr.to_string() + "/get_blocks", res);
+    send_data(known_nodes, addr, &path, &data);
 }
 
 // send local node version to remote addr
@@ -429,79 +435,34 @@ fn send_get_block(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, local_node: 
 fn send_version(
     known_nodes: Arc<Mutex<Vec<String>>>,
     addr: &str,
+    path: &str,
     local_node: &str,
     bc: Arc<BlockChain>,
 ) {
     let best_height = bc.get_best_height();
     let version = Version::new(NODE_VERSION, best_height, local_node.to_owned());
-    let res = send_data(
-        known_nodes,
-        addr,
-        "/version",
-        &serde_json::to_vec(&version).unwrap(),
-    );
-    print_http_result(addr.to_string() + "/version", res);
+    let data = &serde_json::to_vec(&version).unwrap();
+    send_data(known_nodes, addr, path, data);
 }
 
 fn send_data(
     known_nodes: Arc<Mutex<Vec<String>>>,
-    address: &str,
+    addr: &str,
     path: &str,
     data: &[u8],
-) -> Result<Vec<u8>, String> {
-    let (status, body) = tokio_http_post(address, path, data);
-    if status != 200 {
-        let msg = format!("status code is {}", status);
-        return Err(msg);
-    }
+){
+    let arg = pool::DataArg::new(addr.to_owned(), path.to_owned(), vec![], data);
+    pool::put_job(arg);
     // update known_nodes
     {
         let mut known_nodes = known_nodes.lock().unwrap();
         let flag = known_nodes.clone().into_iter().all(
-            |ref node| node != address,
+            |ref node| node != addr,
         );
         if flag {
-
-            known_nodes.append(&mut vec![address.to_string()]);
+            known_nodes.append(&mut vec![addr.to_string()]);
         }
     }
-    match body {
-        Some(data) => Ok(data),
-        None => Err("data is nil".to_owned()),
-    }
 }
 
-fn print_http_result(uri: String, res: Result<Vec<u8>, String>) {
-    if res.is_ok() {
-        info!(LOG, "send get data successfully, URI => {}", uri);
-    } else {
-        error!(
-            LOG,
-            "send get data fail, URI => {}, err: {:?}",
-            uri,
-            res.err().unwrap()
-        );
-    }
-}
 
-fn tokio_http_post(addr: &str, path: &str, data: &[u8]) -> (u16, Option<Vec<u8>>) {
-    debug!(
-        LOG,
-        "address {}, path {}, data {}",
-        addr,
-        path,
-        String::from_utf8_lossy(data)
-    );
-    let addr = format!("http://{}{}", addr, path);
-    let mut evloop = Core::new().unwrap();
-    let future = post(&addr)
-        .header("content-type", "application/json")
-        .body(data.to_vec())
-        .send(evloop.handle());
-    let result = evloop.run(future).expect("HTTP Request failed!");
-    if result.is_success() == false {
-        return (result.status_code(), None);
-    }
-    let body = result.body();
-    (200, Some(body.to_vec()))
-}

@@ -3,14 +3,13 @@ extern crate io_context;
 extern crate threadpool;
 
 use self::io_context::Context;
-use self::threadpool::ThreadPool;
 
 use blockchain::BlockChain;
 use server;
 use transaction;
 use utxo_set;
 
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
 pub struct BlockState {
@@ -64,5 +63,6 @@ pub fn init_router(addr: &str, port: u16, block_chain: BlockState) {
         .mount("/", routes![server::handle_get_block_data])
         .mount("/", routes![server::handle_generate_secrectkey])
         .mount("/", routes![server::handle_valid_pubkey])
+        .mount("/", routes![server::handle_transfer])
         .launch();
 }

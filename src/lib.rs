@@ -29,12 +29,6 @@ extern crate rocket_contrib;
 
 extern crate rocket;
 
-#[macro_use]
-extern crate validator_derive;
-
-#[macro_use]
-extern crate validator;
-
 
 #[macro_use]
 pub mod comm;

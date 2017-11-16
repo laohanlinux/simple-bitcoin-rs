@@ -21,6 +21,7 @@ use super::server;
 use std::fs;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 pub fn create_wallet(node: String, del_old: bool) {
     if del_old {
@@ -292,14 +293,46 @@ pub fn send(
 
 pub fn start_server(
     node: String,
+    node_role: String,
     central_node: String,
     mining_addr: String,
-    addr: &str,
+    addr: String,
     port: u16,
 ) {
     let block_chain = BlockChain::new_blockchain(node);
     let local_node = format!("{}:{}", &addr, port);
     let block_state =
-        router::BlockState::new(block_chain, local_node, central_node.clone(), mining_addr);
-    router::init_router(addr, port, block_state);
+        router::BlockState::new(block_chain, local_node.clone(), central_node.clone(), mining_addr);
+    let known_nodes = block_state.known_nodes.clone();
+    let join = thread::spawn(move ||{
+        router::init_router(&addr, port, block_state);
+    });
+    
+    let node_role = string_to_node_role(node_role);
+    let addr_list = vec![local_node.clone()];
+    match node_role {
+        NodeRole::MiningNode => {
+            server::send_addr(known_nodes, &central_node, addr_list);        
+        },
+        NodeRole::WalletNode => {
+            server::send_addr(known_nodes, &central_node, addr_list);        
+        },
+        NodeRole::CentralNode => {},
+    }
+    join.join().unwrap();
+}
+
+enum NodeRole {
+    CentralNode,
+    WalletNode,
+    MiningNode,
+}
+
+fn string_to_node_role(node_role: String) -> NodeRole{
+   match &node_role[..] {
+      "central" => NodeRole::CentralNode,
+      "wallet" => NodeRole::WalletNode,
+      "mining" => NodeRole::MiningNode,
+        no  => panic!(format!("{} is invalid node role", no)),
+   } 
 }

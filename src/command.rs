@@ -1,22 +1,6 @@
 extern crate serde_json;
-extern crate validator;
 
-use self::validator::{Validate, ValidationError};
-
-pub const PROTOCOL: &str = "http";
 pub const NODE_VERSION: isize = 1;
-
-#[derive(Debug, Validate, Deserialize)]
-struct SignupData {
-    #[validate(email)]
-    mail: String,
-    #[validate(url)]
-    site: String,
-    #[serde(rename = "firstName")]
-    first_name: String,
-    #[validate(range(min = "18", max = "20"))]
-    age: u32,
-}
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Transfer {
@@ -37,7 +21,7 @@ pub struct Block {
     pub block: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Validate, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct GetBlock {
     pub add_from: String,
 }
