@@ -54,6 +54,7 @@ pub fn init_router(addr: &str, port: u16, block_chain: BlockState) {
     conf.set_port(port);
     rocket::Rocket::custom(conf, true)
         .manage(block_chain)
+        .mount("/", routes![server::handle_node_list])
         .mount("/", routes![server::handle_addr])
         .mount("/", routes![server::handle_get_blocks])
         .mount("/", routes![server::handle_inv])

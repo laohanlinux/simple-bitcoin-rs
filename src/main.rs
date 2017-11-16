@@ -350,17 +350,14 @@ fn run_list_transactions(matches: &ArgMatches) {
 fn run_server(mathes: &ArgMatches) {
     let store = mathes.value_of("store").unwrap().to_owned();
     let addr = mathes.value_of("addr").unwrap().to_owned();
-    let port = mathes.value_of("port").unwrap().to_owned().parse::<u16>().unwrap();
+    let port = mathes
+        .value_of("port")
+        .unwrap()
+        .to_owned()
+        .parse::<u16>()
+        .unwrap();
     let central_node = mathes.value_of("central_node").unwrap().to_owned();
     let node_role = mathes.value_of("node_role").unwrap().to_owned();
     let mining_addr = mathes.value_of("mining_addr").unwrap().to_owned();
-    cli::start_server(
-        store,
-        node_role,
-        central_node,
-        mining_addr,
-        addr,
-        port,
-    );
+    cli::start_server(store, node_role, central_node, mining_addr, addr, port);
 }
-

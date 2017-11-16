@@ -18,6 +18,13 @@ use utxo_set;
 use wallet;
 use pool;
 
+#[get("/node/list")]
+pub fn handle_node_list(state: rocket::State<router::BlockState>) -> Json<Value> {
+    let known_nodes = state.known_nodes.clone();
+    let known_nodes = known_nodes.lock().unwrap();
+    ok_data_json!(known_nodes.clone())
+}
+
 #[get("/wallet/generate_secretkey")]
 pub fn handle_generate_secrectkey(state: rocket::State<router::BlockState>) -> Json<Value> {
     let data = wallet::Wallet::new().to_btc_pair();
@@ -73,10 +80,12 @@ pub fn handle_addr(state: rocket::State<router::BlockState>, addrs: Json<Addr>) 
     {
         let known_nodes_lock = state.known_nodes.clone();
         let mut known_nodes = known_nodes_lock.lock().unwrap();
-        let exist = known_nodes.clone().into_iter().all(|node| node != local_node.to_string());
-        if !exist {
+        let exist = known_nodes.clone().into_iter().all(|node| {
+            node != local_node.to_string()
+        });
+        if exist {
             known_nodes.append(&mut addrs.into_inner().addr_list);
-        } 
+        }
         info!(LOG, "There are {} known nodes now", known_nodes.len());
     }
     request_blocks(state.known_nodes.clone(), &local_node);
@@ -355,6 +364,7 @@ fn request_blocks(know_nodes: Arc<Mutex<Vec<String>>>, local_node: &str) {
     }
 }
 
+// path => /get_data
 fn send_get_data(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, kind: String, id: Vec<u8>) {
     let data = GetData {
         add_from: addr.to_string(),
@@ -363,18 +373,14 @@ fn send_get_data(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, kind: String,
     };
     let data = serde_json::to_vec(&data).unwrap();
     let path = format!("{}/get_data", addr);
-    send_data(known_nodes, addr, &path, &data);
+    do_post_request(known_nodes, addr, &path, &data);
 }
 
-// path 
-pub fn send_addr(know_nodes: Arc<Mutex<Vec<String>>>,
-    addr: &str,
-    addr_list: Vec<String>){
-    let join_cluster = Addr{
-        addr_list: addr_list,
-    };
+// path => /addr
+pub fn send_addr(know_nodes: Arc<Mutex<Vec<String>>>, addr: &str, addr_list: Vec<String>) {
+    let join_cluster = Addr { addr_list: addr_list };
     let data = serde_json::to_vec(&join_cluster).unwrap();
-    send_data(know_nodes, addr, "/addr", &data);
+    do_post_request(know_nodes, addr, "/addr", &data);
 }
 
 // path => /inv
@@ -391,7 +397,7 @@ fn send_inv(
         items: items,
     };
     let data = serde_json::to_vec(&inventory).unwrap();
-    send_data(known_nodes, addr, "/inv", &data);
+    do_post_request(known_nodes, addr, "/inv", &data);
 }
 
 // path => /tx
@@ -405,7 +411,7 @@ pub fn send_tx(
         add_from: local_node.to_owned(),
         transaction: serde_json::to_vec(tx).unwrap(),
     }).unwrap();
-    send_data(known_nodes, addr, "/tx", &data);
+    do_post_request(known_nodes, addr, "/tx", &data);
 }
 
 // path => /block
@@ -419,15 +425,14 @@ fn send_block(
         add_from: addr.to_owned(),
         block: serde_json::to_vec(&block).unwrap(),
     }).unwrap();
-    send_data(known_nodes, local_node, "/block", &data);
+    do_post_request(known_nodes, local_node, "/block", &data);
 }
 
 // path => /get_blocks
 fn send_get_block(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, local_node: &str) {
     let request = GetBlock { add_from: local_node.to_owned() };
     let data = serde_json::to_vec(&request).unwrap();
-    let path = format!("{}/get_blocks", addr);
-    send_data(known_nodes, addr, &path, &data);
+    do_get_request(known_nodes, addr, "/get_blocks", &data);
 }
 
 // send local node version to remote addr
@@ -442,27 +447,39 @@ fn send_version(
     let best_height = bc.get_best_height();
     let version = Version::new(NODE_VERSION, best_height, local_node.to_owned());
     let data = &serde_json::to_vec(&version).unwrap();
-    send_data(known_nodes, addr, path, data);
+    do_post_request(known_nodes, addr, path, data);
+}
+
+fn do_get_request(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str, data: &[u8]) {
+    send_data(known_nodes, addr, path, "GET", vec![], data);
+}
+
+fn do_post_request(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str, data: &[u8]) {
+    send_data(known_nodes, addr, path, "POST", vec![], data);
 }
 
 fn send_data(
     known_nodes: Arc<Mutex<Vec<String>>>,
     addr: &str,
     path: &str,
+    method: &str,
+    headers: Vec<(String, String)>,
     data: &[u8],
-){
-    let arg = pool::DataArg::new(addr.to_owned(), path.to_owned(), vec![], data);
+) {
+    let arg = pool::DataArg::new(
+        addr.to_owned(),
+        path.to_owned(),
+        method.to_owned(),
+        headers,
+        data,
+    );
     pool::put_job(arg);
     // update known_nodes
     {
         let mut known_nodes = known_nodes.lock().unwrap();
-        let flag = known_nodes.clone().into_iter().all(
-            |ref node| node != addr,
-        );
+        let flag = known_nodes.clone().into_iter().all(|ref node| node != addr);
         if flag {
             known_nodes.append(&mut vec![addr.to_string()]);
         }
     }
 }
-
-
