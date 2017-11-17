@@ -22,7 +22,7 @@ pub struct Block {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct GetBlock {
+pub struct GetBlocks {
     pub add_from: String,
 }
 

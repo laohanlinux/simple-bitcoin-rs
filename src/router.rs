@@ -34,10 +34,14 @@ impl BlockState {
         let utxo_set = utxo_set::UTXOSet::new(arc_bc.clone());
         utxo_set.reindex();
         let mut ctx = Context::background();
+        let mut known_nodes = vec![central_node.clone()];
+        if known_nodes[0] != local_node.clone(){
+            known_nodes.push(local_node.clone());
+        }
         BlockState {
             bc: arc_bc,
             utxos: Arc::new(Mutex::new(utxo_set)),
-            known_nodes: Arc::new(Mutex::new(vec![central_node, local_node.clone()])),
+            known_nodes: Arc::new(Mutex::new(known_nodes)),
             mining_address: Arc::new(mining_address),
             block_in_transit: Arc::new(Mutex::new(vec![])),
             mem_pool: Arc::new(Mutex::new(HashMap::new())),

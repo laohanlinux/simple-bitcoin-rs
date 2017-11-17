@@ -25,6 +25,9 @@ extern crate slog_term;
 extern crate bigint;
 
 #[macro_use]
+extern crate chan;
+
+#[macro_use]
 extern crate rocket_contrib;
 
 extern crate rocket;

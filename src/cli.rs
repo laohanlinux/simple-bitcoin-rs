@@ -2,6 +2,8 @@ extern crate slog;
 extern crate slog_term;
 extern crate prettytable;
 extern crate typemap;
+extern crate chan;
+extern crate serde_json;
 
 use self::prettytable::Table;
 use self::prettytable::row::Row;
@@ -17,11 +19,15 @@ use super::proof_of_work::ProofOfWork;
 use super::transaction;
 use super::router;
 use super::server;
+use super::pool;
+use super::command;
 
 use std::fs;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use std::thread;
+use std::ops::FnOnce;
 
 pub fn create_wallet(node: String, del_old: bool) {
     if del_old {
@@ -304,6 +310,7 @@ pub fn start_server(
     let block_state =
         router::BlockState::new(block_chain, local_node.clone(), central_node.clone(), mining_addr);
     let known_nodes = block_state.known_nodes.clone();
+    let bc = block_state.bc.clone();
     let join = thread::spawn(move ||{
         router::init_router(&addr, port, block_state);
     });
@@ -312,12 +319,19 @@ pub fn start_server(
     let addr_list = vec![local_node.clone()];
     match node_role {
         NodeRole::MiningNode => {
-            server::send_addr(known_nodes, &central_node, addr_list);        
+            server::send_addr(known_nodes.clone(), &central_node, addr_list);        
+            sync_block_tick(known_nodes.clone(), &central_node, "/version", &local_node, bc);
         },
         NodeRole::WalletNode => {
-            server::send_addr(known_nodes, &central_node, addr_list);        
+            server::send_addr(known_nodes.clone(), &central_node, addr_list);        
+            sync_block_tick(known_nodes.clone(), &central_node, "/version", &local_node, bc);
         },
-        NodeRole::CentralNode => {},
+        NodeRole::CentralNode => {
+            if local_node.clone() != central_node.clone() {
+                server::send_addr(known_nodes.clone(), &central_node, addr_list);        
+                sync_block_tick(known_nodes.clone(), &central_node, "/version", &local_node, bc);
+            }
+        },
     }
     join.join().unwrap();
 }
@@ -335,4 +349,45 @@ fn string_to_node_role(node_role: String) -> NodeRole{
       "mining" => NodeRole::MiningNode,
         no  => panic!(format!("{} is invalid node role", no)),
    } 
+}
+
+fn sync_block_tick(known_nodes: Arc<Mutex<Vec<String>>>, 
+    addr: &str, path: &str, local_node: &str, bc: Arc<BlockChain>) {
+    let tick = chan::tick(Duration::from_secs(3));
+    server::send_version(known_nodes.clone(), addr, path, local_node, bc.clone()); 
+    loop {
+        tick.recv().unwrap();
+        server::send_version(known_nodes.clone(), addr, path, local_node, bc.clone()); 
+        sync_block_peer(known_nodes.clone(), addr, "/node/list");
+    }
+}
+
+fn sync_block_peer(known_nodes: Arc<Mutex<Vec<String>>>,
+                   addr: &str, path: &str) {
+    let f: Box<FnOnce(&[u8]) + Send> = Box::new(move |data|{
+        let result = serde_json::from_slice(data);    
+        if result.is_err() {
+            error!(LOG, "sync peer nodes list error: {:?}", result.err().unwrap());
+        }else {
+            let addrs: command::Addr = result.unwrap();
+            let addr_list = addrs.addr_list.clone();
+            {
+                let mut known_nodes = known_nodes.lock().unwrap();
+                addr_list.into_iter().for_each(|addr| {
+                    let exist = known_nodes.clone().into_iter().all(|node| {
+                        node != addr
+                    });
+                    if exist {
+                        known_nodes.push(addr);
+                    }
+                });
+                info!(LOG, "There are {} known nodes now", known_nodes.len());
+            }
+        }
+    });    
+    let mut arg = pool::DataArg::new(addr.to_owned(), 
+        path.to_owned(), "GET".to_owned(), vec![], &[]);
+    arg.set_call_back(f);
+    debug!(LOG, "sync peer nodes");
+    pool::put_job(arg);
 }

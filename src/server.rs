@@ -76,16 +76,22 @@ pub fn handle_transfer(
 
 #[post("/addr", format = "application/json", data = "<addrs>")]
 pub fn handle_addr(state: rocket::State<router::BlockState>, addrs: Json<Addr>) -> Json<Value> {
+    info!(LOG, "/addr request comming {:?}", &addrs.addr_list);
     let local_node = state.local_node.clone();
+    let addr_list = addrs.addr_list.clone();
     {
         let known_nodes_lock = state.known_nodes.clone();
         let mut known_nodes = known_nodes_lock.lock().unwrap();
-        let exist = known_nodes.clone().into_iter().all(|node| {
-            node != local_node.to_string()
+        addr_list.into_iter().for_each(|addr| {
+            let exist = known_nodes.clone().into_iter().all(|node| {
+                debug!(LOG, "{} {}", &node, &local_node);
+                node != addr
+            });
+            if exist {
+                known_nodes.push(addr);
+            }
         });
-        if exist {
-            known_nodes.append(&mut addrs.into_inner().addr_list);
-        }
+        
         info!(LOG, "There are {} known nodes now", known_nodes.len());
     }
     request_blocks(state.known_nodes.clone(), &local_node);
@@ -223,10 +229,17 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
 }
 
 // sync block, return all block hashes
-#[get("/get_blocks")]
-pub fn handle_get_blocks(blocks: rocket::State<router::BlockState>) -> Json<Value> {
-    let bc = blocks.bc.clone();
+#[post("/get_blocks", format = "application/json", data = "<blocks>")]
+pub fn handle_get_blocks(state: rocket::State<router::BlockState>, blocks: Json<GetBlocks>) -> Json<Value> {
+    let bc = state.bc.clone();
     let hashes: Vec<Vec<u8>> = bc.get_block_hashes();
+    send_inv(
+        state.known_nodes.clone(),
+        &blocks.add_from, 
+        &state.local_node,
+        "block",
+        hashes.clone(),
+        ); 
     let hashes: Vec<String> = hashes
         .into_iter()
         .map(|item| util::encode_hex(item))
@@ -372,8 +385,7 @@ fn send_get_data(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, kind: String,
         id: util::encode_hex(&id),
     };
     let data = serde_json::to_vec(&data).unwrap();
-    let path = format!("{}/get_data", addr);
-    do_post_request(known_nodes, addr, &path, &data);
+    do_post_request(known_nodes, addr,"/get_data", &data);
 }
 
 // path => /addr
@@ -383,23 +395,20 @@ pub fn send_addr(know_nodes: Arc<Mutex<Vec<String>>>, addr: &str, addr_list: Vec
     do_post_request(know_nodes, addr, "/addr", &data);
 }
 
-// path => /inv
-fn send_inv(
+// send local node version to remote addr
+// path => /version
+pub fn send_version(
     known_nodes: Arc<Mutex<Vec<String>>>,
     addr: &str,
+    path: &str,
     local_node: &str,
-    kind: &str,
-    items: Vec<Vec<u8>>,
+    bc: Arc<BlockChain>,
 ) {
-    let inventory = Inv {
-        add_from: local_node.to_owned(),
-        inv_type: kind.to_owned(),
-        items: items,
-    };
-    let data = serde_json::to_vec(&inventory).unwrap();
-    do_post_request(known_nodes, addr, "/inv", &data);
+    let best_height = bc.get_best_height();
+    let version = Version::new(NODE_VERSION, best_height, local_node.to_owned());
+    let data = &serde_json::to_vec(&version).unwrap();
+    do_post_request(known_nodes, addr, path, data);
 }
-
 // path => /tx
 pub fn send_tx(
     known_nodes: Arc<Mutex<Vec<String>>>,
@@ -430,24 +439,26 @@ fn send_block(
 
 // path => /get_blocks
 fn send_get_block(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, local_node: &str) {
-    let request = GetBlock { add_from: local_node.to_owned() };
+    let request = GetBlocks { add_from: local_node.to_owned() };
     let data = serde_json::to_vec(&request).unwrap();
-    do_get_request(known_nodes, addr, "/get_blocks", &data);
+    do_post_request(known_nodes, addr, "/get_blocks", &data);
 }
 
-// send local node version to remote addr
-// path => /version
-fn send_version(
+// path => /inv
+fn send_inv(
     known_nodes: Arc<Mutex<Vec<String>>>,
     addr: &str,
-    path: &str,
     local_node: &str,
-    bc: Arc<BlockChain>,
+    kind: &str,
+    items: Vec<Vec<u8>>,
 ) {
-    let best_height = bc.get_best_height();
-    let version = Version::new(NODE_VERSION, best_height, local_node.to_owned());
-    let data = &serde_json::to_vec(&version).unwrap();
-    do_post_request(known_nodes, addr, path, data);
+    let inventory = Inv {
+        add_from: local_node.to_owned(),
+        inv_type: kind.to_owned(),
+        items: items,
+    };
+    let data = serde_json::to_vec(&inventory).unwrap();
+    do_post_request(known_nodes, addr, "/inv", &data);
 }
 
 fn do_get_request(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str, data: &[u8]) {

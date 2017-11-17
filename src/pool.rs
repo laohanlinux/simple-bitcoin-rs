@@ -10,6 +10,7 @@ use self::threadpool::ThreadPool;
 use std::sync::{Arc, Mutex, RwLock};
 use std::io;
 use std::io::Write;
+use std::ops::FnOnce;
 
 use log::*;
 
@@ -18,13 +19,13 @@ lazy_static!{
 //    static ref POOL: Arc<RwLock<ThreadPool>> = Arc::new(RwLock::new(ThreadPool::new(10)));
 }
 
-#[derive(Clone)]
 pub struct DataArg {
     addr: String,
     path: String,
     method: String,
     headers: Vec<(String, String)>,
     data: Vec<u8>,
+    call_back: Box<FnOnce(vec<u8>) + Send>,
 }
 
 impl DataArg {
@@ -42,7 +43,12 @@ impl DataArg {
             method: method,
             headers: headers,
             data: data.to_vec(),
+            call_back: Box::new(|_|{}),
         }
+    }
+
+    pub fn set_call_back(&mut self, call_back: Box<FnOnce(&[u8]) + Send>) {
+        self.call_back = call_back;
     }
 }
 
@@ -54,18 +60,19 @@ pub fn put_job(data_arg: DataArg) {
     };
 
     pool.execute(move || {
-        let (addr, path, method, data, headers) = (
+        let (addr, path, method, data, headers, call_back) = (
             &data_arg.addr,
             &data_arg.path,
             &data_arg.method,
             &data_arg.data,
             &data_arg.headers,
+            &data_arg.call_back,
         );
         let addr = format!("http://{}{}", addr, path);
         debug!(LOG, "addr => {}", &addr);
         let mut evloop = Core::new().unwrap();
 
-        let mut req = if method.as_str() == "GET" {
+        let req = if method.as_str() == "GET" {
             get(&addr)
         } else {
             post(&addr)
@@ -80,15 +87,18 @@ pub fn put_job(data_arg: DataArg) {
                 "send get data fail, URI => {}",
                 addr,
             );
+        }else {
+            let body = result.body();
+            call_back(body);
         }
-        let body = result.body();
+       /* let body = result.body();
         info!(
             LOG,
             "send get data successfully, URI => {}, data => {}",
             addr,
             String::from_utf8_lossy(body)
-        );
-        writeln!(io::stdout(), "{}", String::from_utf8_lossy(body));
+        );*/
+        //writeln!(io::stdout(), "{}", String::from_utf8_lossy(body));
     });
 }
 
