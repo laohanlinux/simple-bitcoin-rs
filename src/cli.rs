@@ -27,7 +27,7 @@ use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::thread;
-use std::ops::FnOnce;
+use std::ops::Fn;
 
 pub fn create_wallet(node: String, del_old: bool) {
     if del_old {
@@ -364,13 +364,23 @@ fn sync_block_tick(known_nodes: Arc<Mutex<Vec<String>>>,
 
 fn sync_block_peer(known_nodes: Arc<Mutex<Vec<String>>>,
                    addr: &str, path: &str) {
-    let f: Box<FnOnce(&[u8]) + Send> = Box::new(move |data|{
-        let result = serde_json::from_slice(data);    
+   
+    #[derive(Serialize, Deserialize, Debug, Default, Clone)]
+    struct Data {
+            data: Vec<String>, 
+            status: String,
+    } 
+    let f: Box<Fn(Vec<u8>) + Send> = Box::new(move |data|{
+        let result = serde_json::from_slice(&data.clone());    
         if result.is_err() {
             error!(LOG, "sync peer nodes list error: {:?}", result.err().unwrap());
         }else {
-            let addrs: command::Addr = result.unwrap();
-            let addr_list = addrs.addr_list.clone();
+            let addrs: Data = result.unwrap();
+            if addrs.status != "ok" {
+                error!(LOG, "sync peer nodes fail, status code {}", addrs.status);
+                return
+            }
+            let addr_list = addrs.data.clone();
             {
                 let mut known_nodes = known_nodes.lock().unwrap();
                 addr_list.into_iter().for_each(|addr| {

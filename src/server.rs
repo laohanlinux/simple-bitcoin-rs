@@ -25,6 +25,16 @@ pub fn handle_node_list(state: rocket::State<router::BlockState>) -> Json<Value>
     ok_data_json!(known_nodes.clone())
 }
 
+#[get("/wallet/blocks")] 
+pub fn handle_list_block(state: rocket::State<router::BlockState>) -> Json<Value> {
+    let block = state.bc.clone().get_block_hashes();
+    let hashes: Vec<String> = block 
+        .into_iter()
+        .map(|item| util::encode_hex(item))
+        .collect();
+    ok_data_json!(hashes)
+} 
+
 #[get("/wallet/generate_secretkey")]
 pub fn handle_generate_secrectkey(state: rocket::State<router::BlockState>) -> Json<Value> {
     let data = wallet::Wallet::new().to_btc_pair();

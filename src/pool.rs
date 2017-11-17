@@ -10,7 +10,7 @@ use self::threadpool::ThreadPool;
 use std::sync::{Arc, Mutex, RwLock};
 use std::io;
 use std::io::Write;
-use std::ops::FnOnce;
+use std::ops::Fn;
 
 use log::*;
 
@@ -25,7 +25,7 @@ pub struct DataArg {
     method: String,
     headers: Vec<(String, String)>,
     data: Vec<u8>,
-    call_back: Box<FnOnce(vec<u8>) + Send>,
+    call_back: Box<Fn(Vec<u8>) + Send>,
 }
 
 impl DataArg {
@@ -47,7 +47,7 @@ impl DataArg {
         }
     }
 
-    pub fn set_call_back(&mut self, call_back: Box<FnOnce(&[u8]) + Send>) {
+    pub fn set_call_back(&mut self, call_back: Box<Fn(Vec<u8>) + Send>) {
         self.call_back = call_back;
     }
 }
@@ -60,13 +60,12 @@ pub fn put_job(data_arg: DataArg) {
     };
 
     pool.execute(move || {
-        let (addr, path, method, data, headers, call_back) = (
+        let (addr, path, method, data, headers) = (
             &data_arg.addr,
             &data_arg.path,
             &data_arg.method,
             &data_arg.data,
             &data_arg.headers,
-            &data_arg.call_back,
         );
         let addr = format!("http://{}{}", addr, path);
         debug!(LOG, "addr => {}", &addr);
@@ -89,7 +88,7 @@ pub fn put_job(data_arg: DataArg) {
             );
         }else {
             let body = result.body();
-            call_back(body);
+            (data_arg.call_back)(body.to_vec());
         }
        /* let body = result.body();
         info!(
