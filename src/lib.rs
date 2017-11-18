@@ -1,6 +1,5 @@
-#![feature(attr_literals)]
+#![feature(attr_literals, plugin, custom_derive, const_fn)]
 #![allow(unused_variables)]
-#![feature(plugin)]
 #![plugin(rocket_codegen)]
 
 #[macro_use]

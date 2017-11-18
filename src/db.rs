@@ -59,4 +59,3 @@ impl DBStore {
         db.delete(key).unwrap()
     }
 }
-

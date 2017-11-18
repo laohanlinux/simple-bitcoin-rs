@@ -1,8 +1,12 @@
+
 extern crate serde_json;
+extern crate rocket;
+
+use self::rocket::request::{Form, FromFormValue};
 
 pub const NODE_VERSION: isize = 1;
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, FromForm, Debug, Default, Clone)]
 pub struct Transfer {
     pub from: String,
     pub to: String,

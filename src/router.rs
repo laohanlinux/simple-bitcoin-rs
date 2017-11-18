@@ -35,7 +35,7 @@ impl BlockState {
         utxo_set.reindex();
         let mut ctx = Context::background();
         let mut known_nodes = vec![central_node.clone()];
-        if known_nodes[0] != local_node.clone(){
+        if known_nodes[0] != local_node.clone() {
             known_nodes.push(local_node.clone());
         }
         BlockState {
@@ -70,5 +70,6 @@ pub fn init_router(addr: &str, port: u16, block_chain: BlockState) {
         .mount("/", routes![server::handle_generate_secrectkey])
         .mount("/", routes![server::handle_valid_pubkey])
         .mount("/", routes![server::handle_transfer])
+        .mount("/", routes![server::index])
         .launch();
 }

@@ -307,31 +307,51 @@ pub fn start_server(
 ) {
     let block_chain = BlockChain::new_blockchain(node);
     let local_node = format!("{}:{}", &addr, port);
-    let block_state =
-        router::BlockState::new(block_chain, local_node.clone(), central_node.clone(), mining_addr);
+    let block_state = router::BlockState::new(
+        block_chain,
+        local_node.clone(),
+        central_node.clone(),
+        mining_addr,
+    );
     let known_nodes = block_state.known_nodes.clone();
     let bc = block_state.bc.clone();
-    let join = thread::spawn(move ||{
-        router::init_router(&addr, port, block_state);
-    });
-    
+    let join = thread::spawn(move || { router::init_router(&addr, port, block_state); });
+
     let node_role = string_to_node_role(node_role);
     let addr_list = vec![local_node.clone()];
     match node_role {
         NodeRole::MiningNode => {
-            server::send_addr(known_nodes.clone(), &central_node, addr_list);        
-            sync_block_tick(known_nodes.clone(), &central_node, "/version", &local_node, bc);
-        },
+            server::send_addr(known_nodes.clone(), &central_node, addr_list);
+            sync_block_tick(
+                known_nodes.clone(),
+                &central_node,
+                "/version",
+                &local_node,
+                bc,
+            );
+        }
         NodeRole::WalletNode => {
-            server::send_addr(known_nodes.clone(), &central_node, addr_list);        
-            sync_block_tick(known_nodes.clone(), &central_node, "/version", &local_node, bc);
-        },
+            server::send_addr(known_nodes.clone(), &central_node, addr_list);
+            sync_block_tick(
+                known_nodes.clone(),
+                &central_node,
+                "/version",
+                &local_node,
+                bc,
+            );
+        }
         NodeRole::CentralNode => {
             if local_node.clone() != central_node.clone() {
-                server::send_addr(known_nodes.clone(), &central_node, addr_list);        
-                sync_block_tick(known_nodes.clone(), &central_node, "/version", &local_node, bc);
+                server::send_addr(known_nodes.clone(), &central_node, addr_list);
+                sync_block_tick(
+                    known_nodes.clone(),
+                    &central_node,
+                    "/version",
+                    &local_node,
+                    bc,
+                );
             }
-        },
+        }
     }
     join.join().unwrap();
 }
@@ -342,51 +362,57 @@ enum NodeRole {
     MiningNode,
 }
 
-fn string_to_node_role(node_role: String) -> NodeRole{
-   match &node_role[..] {
-      "central" => NodeRole::CentralNode,
-      "wallet" => NodeRole::WalletNode,
-      "mining" => NodeRole::MiningNode,
-        no  => panic!(format!("{} is invalid node role", no)),
-   } 
+fn string_to_node_role(node_role: String) -> NodeRole {
+    match &node_role[..] {
+        "central" => NodeRole::CentralNode,
+        "wallet" => NodeRole::WalletNode,
+        "mining" => NodeRole::MiningNode,
+        no => panic!(format!("{} is invalid node role", no)),
+    }
 }
 
-fn sync_block_tick(known_nodes: Arc<Mutex<Vec<String>>>, 
-    addr: &str, path: &str, local_node: &str, bc: Arc<BlockChain>) {
+fn sync_block_tick(
+    known_nodes: Arc<Mutex<Vec<String>>>,
+    addr: &str,
+    path: &str,
+    local_node: &str,
+    bc: Arc<BlockChain>,
+) {
     let tick = chan::tick(Duration::from_secs(3));
-    server::send_version(known_nodes.clone(), addr, path, local_node, bc.clone()); 
+    server::send_version(known_nodes.clone(), addr, path, local_node, bc.clone());
     loop {
         tick.recv().unwrap();
-        server::send_version(known_nodes.clone(), addr, path, local_node, bc.clone()); 
+        server::send_version(known_nodes.clone(), addr, path, local_node, bc.clone());
         sync_block_peer(known_nodes.clone(), addr, "/node/list");
     }
 }
 
-fn sync_block_peer(known_nodes: Arc<Mutex<Vec<String>>>,
-                   addr: &str, path: &str) {
-   
+fn sync_block_peer(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str) {
+
     #[derive(Serialize, Deserialize, Debug, Default, Clone)]
     struct Data {
-            data: Vec<String>, 
-            status: String,
-    } 
-    let f: Box<Fn(Vec<u8>) + Send> = Box::new(move |data|{
-        let result = serde_json::from_slice(&data.clone());    
+        data: Vec<String>,
+        status: String,
+    }
+    let f: Box<Fn(Vec<u8>) + Send> = Box::new(move |data| {
+        let result = serde_json::from_slice(&data.clone());
         if result.is_err() {
-            error!(LOG, "sync peer nodes list error: {:?}", result.err().unwrap());
-        }else {
+            error!(
+                LOG,
+                "sync peer nodes list error: {:?}",
+                result.err().unwrap()
+            );
+        } else {
             let addrs: Data = result.unwrap();
             if addrs.status != "ok" {
                 error!(LOG, "sync peer nodes fail, status code {}", addrs.status);
-                return
+                return;
             }
             let addr_list = addrs.data.clone();
             {
                 let mut known_nodes = known_nodes.lock().unwrap();
                 addr_list.into_iter().for_each(|addr| {
-                    let exist = known_nodes.clone().into_iter().all(|node| {
-                        node != addr
-                    });
+                    let exist = known_nodes.clone().into_iter().all(|node| node != addr);
                     if exist {
                         known_nodes.push(addr);
                     }
@@ -394,9 +420,14 @@ fn sync_block_peer(known_nodes: Arc<Mutex<Vec<String>>>,
                 info!(LOG, "There are {} known nodes now", known_nodes.len());
             }
         }
-    });    
-    let mut arg = pool::DataArg::new(addr.to_owned(), 
-        path.to_owned(), "GET".to_owned(), vec![], &[]);
+    });
+    let mut arg = pool::DataArg::new(
+        addr.to_owned(),
+        path.to_owned(),
+        "GET".to_owned(),
+        vec![],
+        &[],
+    );
     arg.set_call_back(f);
     debug!(LOG, "sync peer nodes");
     pool::put_job(arg);

@@ -43,7 +43,7 @@ impl DataArg {
             method: method,
             headers: headers,
             data: data.to_vec(),
-            call_back: Box::new(|_|{}),
+            call_back: Box::new(|_| {}),
         }
     }
 
@@ -86,11 +86,11 @@ pub fn put_job(data_arg: DataArg) {
                 "send get data fail, URI => {}",
                 addr,
             );
-        }else {
+        } else {
             let body = result.body();
             (data_arg.call_back)(body.to_vec());
         }
-       /* let body = result.body();
+        /* let body = result.body();
         info!(
             LOG,
             "send get data successfully, URI => {}, data => {}",

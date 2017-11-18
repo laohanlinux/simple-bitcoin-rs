@@ -3,9 +3,13 @@ extern crate rocket;
 extern crate rocket_contrib;
 extern crate lazy_static;
 
+use self::rocket::request::{Form, FlashMessage};
 use self::rocket_contrib::{Json, Value};
+use self::rocket::response::NamedFile;
 
+use std::io;
 use std::sync::{Arc, Mutex};
+use std::path::{Path, PathBuf};
 
 use transaction::Transaction;
 use log::*;
@@ -25,15 +29,15 @@ pub fn handle_node_list(state: rocket::State<router::BlockState>) -> Json<Value>
     ok_data_json!(known_nodes.clone())
 }
 
-#[get("/wallet/blocks")] 
+#[get("/wallet/blocks")]
 pub fn handle_list_block(state: rocket::State<router::BlockState>) -> Json<Value> {
     let block = state.bc.clone().get_block_hashes();
-    let hashes: Vec<String> = block 
+    let hashes: Vec<String> = block
         .into_iter()
         .map(|item| util::encode_hex(item))
         .collect();
     ok_data_json!(hashes)
-} 
+}
 
 #[get("/wallet/generate_secretkey")]
 pub fn handle_generate_secrectkey(state: rocket::State<router::BlockState>) -> Json<Value> {
@@ -53,18 +57,24 @@ pub fn handle_valid_pubkey(
     }
 }
 
-#[post("/wallet/transfer", format = "application/json", data = "<transfer>")]
+#[post("/wallet/transfer", data = "<transfer>")]
 pub fn handle_transfer(
     state: rocket::State<router::BlockState>,
-    transfer: Json<Transfer>,
+    transfer: Form<Transfer>,
 ) -> Json<Value> {
-    if !wallet::Wallet::validate_address(transfer.from.clone()) {
+    let transfer = transfer.into_inner();
+    if transfer.from.len() == 0 || !wallet::Wallet::validate_address(transfer.from.clone()) {
         return bad_data_json!("ERROR: From's address is not valid".to_owned());
     }
-    if !wallet::Wallet::validate_address(transfer.to.clone()) {
+    if transfer.from.len() == 0 || !wallet::Wallet::validate_address(transfer.to.clone()) {
         return bad_data_json!("ERROR: To's address is not valid".to_owned());
     }
-
+    if transfer.secret_key.len() == 0 {
+        return bad_data_json!("ERROR: From's secret key is not valid".to_owned());
+    }
+    if transfer.amount <= 0 {
+        return bad_data_json!("ERROR: amount must more than zero".to_owned());
+    }
     let from_wallet = wallet::Wallet::recover_wallet(&util::decode_hex(&transfer.secret_key));
     if from_wallet.is_err() {
         return bad_data_json!(from_wallet.err());
@@ -101,7 +111,7 @@ pub fn handle_addr(state: rocket::State<router::BlockState>, addrs: Json<Addr>) 
                 known_nodes.push(addr);
             }
         });
-        
+
         info!(LOG, "There are {} known nodes now", known_nodes.len());
     }
     request_blocks(state.known_nodes.clone(), &local_node);
@@ -240,16 +250,19 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
 
 // sync block, return all block hashes
 #[post("/get_blocks", format = "application/json", data = "<blocks>")]
-pub fn handle_get_blocks(state: rocket::State<router::BlockState>, blocks: Json<GetBlocks>) -> Json<Value> {
+pub fn handle_get_blocks(
+    state: rocket::State<router::BlockState>,
+    blocks: Json<GetBlocks>,
+) -> Json<Value> {
     let bc = state.bc.clone();
     let hashes: Vec<Vec<u8>> = bc.get_block_hashes();
     send_inv(
         state.known_nodes.clone(),
-        &blocks.add_from, 
+        &blocks.add_from,
         &state.local_node,
         "block",
         hashes.clone(),
-        ); 
+    );
     let hashes: Vec<String> = hashes
         .into_iter()
         .map(|item| util::encode_hex(item))
@@ -375,6 +388,12 @@ pub fn handle_block(
     ok_data_json!("")
 }
 
+
+#[get("/")]
+fn index() -> io::Result<NamedFile> {
+    NamedFile::open("static/index.html")
+}
+
 // TODO, may be has better way to do it
 fn request_blocks(know_nodes: Arc<Mutex<Vec<String>>>, local_node: &str) {
     let know_nodes_copy = {
@@ -395,7 +414,7 @@ fn send_get_data(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, kind: String,
         id: util::encode_hex(&id),
     };
     let data = serde_json::to_vec(&data).unwrap();
-    do_post_request(known_nodes, addr,"/get_data", &data);
+    do_post_request(known_nodes, addr, "/get_data", &data);
 }
 
 // path => /addr
