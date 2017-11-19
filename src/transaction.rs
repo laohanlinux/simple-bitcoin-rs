@@ -32,7 +32,7 @@ pub struct Transaction {
     pub id: Vec<u8>,
     pub vin: Vec<TXInput>, // 索引为vec的索引
     pub vout: Vec<TXOutput>, // 索引为vec的索引
-    pub lock_time: u32,
+  //  pub lock_time: u32,
 }
 
 impl Transaction {
@@ -52,7 +52,7 @@ impl Transaction {
             id: vec![],
             vin: vec![txin],
             vout: vec![txout],
-            lock_time: time::get_time().sec as u32,
+         //   lock_time: time::get_time().sec as u32,
         };
         let hash = tx.hash();
         tx.id = hash;
@@ -91,7 +91,7 @@ impl Transaction {
             id: vec![],
             vin: inputs,
             vout: outputs,
-            lock_time: time::get_time().sec as u32,
+        //    lock_time: time::get_time().sec as u32,
         };
         let txid = tx.hash();
         tx.id = txid;
@@ -243,7 +243,7 @@ impl Transaction {
             id: self.id.clone(),
             vin: inputs,
             vout: outputs,
-            lock_time: time::get_time().sec as u32,
+           // lock_time: time::get_time().sec as u32,
         }
     }
 
