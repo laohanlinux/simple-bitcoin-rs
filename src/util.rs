@@ -231,6 +231,48 @@ pub fn sha256(input: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn test_secret_hex() {
+        use super::encode_hex;
+        use std::io::*;
+        let secret_key = vec![
+            74,
+            227,
+            138,
+            113,
+            148,
+            97,
+            107,
+            237,
+            79,
+            149,
+            219,
+            145,
+            158,
+            202,
+            87,
+            240,
+            63,
+            151,
+            138,
+            50,
+            226,
+            31,
+            146,
+            131,
+            7,
+            153,
+            57,
+            113,
+            14,
+            250,
+            165,
+            57,
+        ];
+        let secret_key_hex = encode_hex(&secret_key);
+        writeln!(stdout(), "{}", secret_key_hex);
+    }
+
+    #[test]
     fn test_bin_op() {
         use super::{write_i32, write_i64, read_i32, read_i64};
 

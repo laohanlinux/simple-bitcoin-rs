@@ -417,7 +417,7 @@ fn sync_block_peer(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str)
                         known_nodes.push(addr);
                     }
                 });
-                info!(LOG, "There are {} known nodes now", known_nodes.len());
+                //info!(LOG, "There are {} known nodes now", known_nodes.len());
             }
         }
     });
@@ -429,6 +429,6 @@ fn sync_block_peer(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str)
         &[],
     );
     arg.set_call_back(f);
-    debug!(LOG, "sync peer nodes");
+    //debug!(LOG, "sync peer nodes");
     pool::put_job(arg);
 }

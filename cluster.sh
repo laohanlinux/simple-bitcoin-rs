@@ -50,7 +50,7 @@ RUST_BACKTRACE=full ./target/debug/bitcoin server --addr 127.0.0.1 --port 3011 -
 echo "start a mining node"
 
 sleep 1
-RUST_BACKTRACE=full ./target/debug/bitcoin server --addr 127.0.0.1 --port 3020 --central_node 127.0.0.1:3000 --store "3020_blockchain_db" --node_role wallet &
+RUST_BACKTRACE=full ./target/debug/bitcoin server --addr 127.0.0.1 --port 3020 --central_node 127.0.0.1:3000 --store "3020_blockchain_db" --node_role mining &
 
 sleep 1
-RUST_BACKTRACE=full ./target/debug/bitcoin server --addr 127.0.0.1 --port 3021 --central_node 127.0.0.1:3000 --store "3021_blockchain_db" --node_role wallet &
+RUST_BACKTRACE=full ./target/debug/bitcoin server --addr 127.0.0.1 --port 3021 --central_node 127.0.0.1:3000 --store "3021_blockchain_db" --node_role mining &

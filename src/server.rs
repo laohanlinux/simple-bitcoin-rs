@@ -63,10 +63,11 @@ pub fn handle_transfer(
     transfer: Form<Transfer>,
 ) -> Json<Value> {
     let transfer = transfer.into_inner();
+    debug!(LOG, "{:?}", &transfer);
     if transfer.from.len() == 0 || !wallet::Wallet::validate_address(transfer.from.clone()) {
         return bad_data_json!("ERROR: From's address is not valid".to_owned());
     }
-    if transfer.from.len() == 0 || !wallet::Wallet::validate_address(transfer.to.clone()) {
+    if transfer.to.len() == 0 || !wallet::Wallet::validate_address(transfer.to.clone()) {
         return bad_data_json!("ERROR: To's address is not valid".to_owned());
     }
     if transfer.secret_key.len() == 0 {
@@ -75,15 +76,25 @@ pub fn handle_transfer(
     if transfer.amount <= 0 {
         return bad_data_json!("ERROR: amount must more than zero".to_owned());
     }
-    let from_wallet = wallet::Wallet::recover_wallet(&util::decode_hex(&transfer.secret_key));
+    let secret_key = util::decode_hex(&transfer.secret_key);
+    let from_wallet = wallet::Wallet::recover_wallet(&secret_key);
     if from_wallet.is_err() {
         return bad_data_json!(from_wallet.err());
     }
     let from_wallet = from_wallet.unwrap();
+    if from_wallet.get_address() != transfer.from {
+        return bad_data_json!("from's addr not equal secret_key's addr".to_owned());
+    }
     let (to, amount) = (&transfer.to, transfer.amount as isize);
     let bc = state.bc.clone();
     let utxo = utxo_set::UTXOSet::new(bc.clone());
-    let tx = Transaction::new_utxo_transaction(&from_wallet, to.to_owned(), amount, &utxo).unwrap();
+    let tx = {
+        let tx = Transaction::new_utxo_transaction(&from_wallet, to.to_owned(), amount, &utxo);
+        if tx.is_err() {
+            return bad_data_json!(tx.err());
+        }
+        tx.unwrap()
+    };
     let local_addr = state.local_node.clone();
     let known_nodes = state.known_nodes.clone();
     let central_node = {
@@ -124,12 +135,13 @@ pub fn handle_get_block_data(
     state: rocket::State<router::BlockState>,
     block_data: Json<GetData>,
 ) -> Json<Value> {
+	info!(LOG, "get data, {}, {}", &block_data.data_type, &block_data.id);
     let get_type = &block_data.data_type;
     let bc = state.bc.clone();
-    let block_hash = &block_data.id;
     let local_node = state.local_node.clone();
     if get_type == "block" {
-        let block = bc.get_block(&util::decode_hex(&block_data.id));
+    	let block_hash = &block_data.id;
+        let block = bc.get_block(&util::decode_hex(block_hash));
         if block.is_none() {
             return bad_json!();
         }
@@ -141,16 +153,17 @@ pub fn handle_get_block_data(
         );
     }
     if get_type == "tx" {
-        let txid = util::encode_hex(&block_data.id);
+        let txid = &block_data.id;
         let tx = {
             let mem_pool = state.mem_pool.clone();
             let mem_pool = mem_pool.lock().unwrap();
-            let tx = mem_pool.get(&txid);
+            let tx = mem_pool.get(&txid.clone());
             if tx.is_none() {
-                return ok_json!();
+            	return bad_data_json!(format!("{} not found in {}", &txid, &local_node));
             }
             tx.unwrap().clone()
         };
+        warn!(LOG, "find a txid {}, transfer it to {}", txid, &block_data.add_from);
         send_tx(
             state.known_nodes.clone(),
             &block_data.add_from,
@@ -162,11 +175,13 @@ pub fn handle_get_block_data(
     ok_json!()
 }
 
+// Notic, it may be cause mining ...
 #[post("/tx", format = "application/json", data = "<tx>")]
 pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json<Value> {
     let txdata = &tx.transaction;
     let ts: Transaction = serde_json::from_slice(txdata).unwrap();
     let txid = util::encode_hex(&ts.id);
+    debug!(LOG, "get a transaction, txid: {}", &txid);
     // add new transaction into mempool
     let mem_pool = state.mem_pool.clone();
     let mut mem_pool = mem_pool.lock().unwrap();
@@ -184,6 +199,7 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
     if local_node.to_lowercase() == known_nodes[0].to_lowercase() {
         let txid = &ts.id;
         for node in known_nodes {
+        	info!(LOG, "forward transaction to {}", &node);
             send_inv(
                 state.known_nodes.clone(),
                 node,
@@ -196,7 +212,8 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
         // the local node is a mining node, start to mining!
         let mining_addr = state.mining_address.clone();
         loop {
-            if mem_pool.len() >= 2 && mining_addr.len() > 0 {
+            if mem_pool.len() >= 1 && mining_addr.len() > 0 {
+            	debug!(LOG, "i am mining node:{} start to mining", &mining_addr);
                 // mine transactions
                 let mut txs = vec![];
                 let bc = state.bc.clone();
@@ -302,6 +319,7 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         inv.inv_type
     );
     let inv_type = &inv.inv_type;
+    let local_node = state.local_node.clone();
     if inv_type == "block" {
         let block_in_transit = state.block_in_transit.clone();
         let mut block_in_transit = block_in_transit.lock().unwrap();
@@ -309,7 +327,7 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         let block_hash = inv.items[0].clone();
         send_get_data(
             state.known_nodes.clone(),
-            &inv.add_from,
+            &local_node,
             "block".to_owned(),
             block_hash.clone(),
         );
@@ -328,9 +346,10 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         let mem_pool = state.mem_pool.clone();
         let mem_pool = mem_pool.lock().unwrap();
         if mem_pool.get(&util::encode_hex(&txid)).is_none() {
+        	info!(LOG, "{} not found in local node, start to download from remote node:{}", util::encode_hex(&txid), &inv.add_from);
             send_get_data(
                 state.known_nodes.clone(),
-                &inv.add_from,
+                &local_node,
                 "tx".to_owned(),
                 txid,
             );

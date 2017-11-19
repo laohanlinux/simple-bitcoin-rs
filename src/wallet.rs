@@ -23,6 +23,8 @@ pub const ADDRESS_CHECKSUM_LEN: usize = 4;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Wallet {
     pub secret_key: SecretKey,
+    #[serde(default)]
+    pub secret_key_hex: String,
     pub public_key: PublicKey,
 }
 
@@ -30,10 +32,14 @@ impl Wallet {
     pub fn new() -> Wallet {
         let full = secp256k1::Secp256k1::with_caps(ContextFlag::Full);
         let (secret_key, public_key) = full.generate_keypair(&mut thread_rng()).unwrap();
-        Wallet {
+        let mut w = Wallet {
             secret_key: secret_key,
+            secret_key_hex: "..".to_owned(),
             public_key: public_key,
-        }
+        };
+        let (secret_key_vec, _) = w.to_vec();
+        w.secret_key_hex = util::encode_hex(&secret_key_vec);
+        w
     }
 
     pub fn new_key_pair() -> (SecretKey, Vec<u8>) {
@@ -49,10 +55,14 @@ impl Wallet {
         )?;
         let secp = secp256k1::Secp256k1::with_caps(ContextFlag::Full);
         let pub_key = PublicKey::from_secret_key(&secp, &secret_key).unwrap();
-        Ok(Wallet {
+        let mut w = Wallet {
             secret_key: secret_key,
+            secret_key_hex: "..".to_owned(),
             public_key: pub_key,
-        })
+        };
+        let (secret_key_vec, _) = w.to_vec();
+        w.secret_key_hex = util::encode_hex(&secret_key_vec);
+        Ok(w)
     }
 
     // get bitcoin address
@@ -114,7 +124,11 @@ impl Wallet {
     }
 
     pub fn to_vec(&self) -> (Vec<u8>, Vec<u8>) {
-        let serialize_vec = self.serialize();
+        let tmp_pair = private_pair {
+            public_key: self.public_key.clone(),
+            secret_key: self.secret_key.clone(),
+        };
+        let serialize_vec = serde_json::to_vec(&tmp_pair).unwrap();
         let pair: HashMap<String, Vec<u8>> = serde_json::from_slice(&serialize_vec).unwrap();
         let secret_key = pair.get("secret_key").unwrap();
         let public_key = pair.get("public_key").unwrap();
@@ -123,9 +137,11 @@ impl Wallet {
 
     pub fn to_btc_pair(&self) -> BTCPair {
         let (secret_key, public_key) = self.to_vec();
+        let secret_key_hex = util::encode_hex(&secret_key);
         let address = self.get_address();
         BTCPair {
             secret_key: secret_key,
+            secret_key_hex: secret_key_hex,
             public_key: public_key,
             address: address,
         }
@@ -133,8 +149,15 @@ impl Wallet {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct private_pair {
+    secret_key: SecretKey,
+    public_key: PublicKey,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BTCPair {
     secret_key: Vec<u8>,
+    secret_key_hex: String,
     public_key: Vec<u8>,
     address: String,
 }

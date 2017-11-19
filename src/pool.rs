@@ -123,9 +123,11 @@ mod tests {
         let arg = DataArg::new(
             "127.0.0.1:17172".to_owned(),
             "/1/users/state".to_owned(),
+            "GET".to_owned(),
             headers,
             b"{\"uids\": [\"123\"]}",
         );
+        /*        super::put_job(arg.clone());
         super::put_job(arg.clone());
         super::put_job(arg.clone());
         super::put_job(arg.clone());
@@ -146,8 +148,7 @@ mod tests {
         super::put_job(arg.clone());
         super::put_job(arg.clone());
         super::put_job(arg.clone());
-        super::put_job(arg.clone());
-
+*/
         thread::sleep_ms(2000);
     }
 }
