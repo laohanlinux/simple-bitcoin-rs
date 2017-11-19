@@ -2,6 +2,7 @@ extern crate threadpool;
 extern crate tokio_core;
 extern crate tokio_request;
 extern crate url;
+extern crate serde_json;
 
 use self::tokio_core::reactor::Core;
 use self::tokio_request::str::{get, post};
@@ -13,6 +14,7 @@ use std::io::Write;
 use std::ops::Fn;
 
 use log::*;
+use util;
 
 lazy_static!{
     static ref POOL: Arc<Mutex<ThreadPool>> = Arc::new(Mutex::new(ThreadPool::new(10)));
@@ -43,13 +45,29 @@ impl DataArg {
             method: method,
             headers: headers,
             data: data.to_vec(),
-            call_back: Box::new(|_| {}),
+            call_back: default_call_back(),
         }
     }
 
     pub fn set_call_back(&mut self, call_back: Box<Fn(Vec<u8>) + Send>) {
         self.call_back = call_back;
     }
+}
+
+pub fn default_call_back() -> Box<Fn(Vec<u8>) + Send> {
+    Box::new(|data| {
+        let res: Data = serde_json::from_slice(&data).unwrap();
+        if res.status != "ok" {
+            let data = String::from_utf8_lossy(&data);
+            error!(LOG, "http request error: {}", data);
+        }
+    })
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+struct Data {
+//    data: Vec<String>,
+    status: String,
 }
 
 pub fn put_job(data_arg: DataArg) {
@@ -79,7 +97,13 @@ pub fn put_job(data_arg: DataArg) {
         let future = req.headers(headers.clone()).body(data.to_vec()).send(
             evloop.handle(),
         );
-        let result = evloop.run(future).expect("HTTP Request failed!");
+        let result = evloop.run(future);
+        if result.is_err(){
+            error!(LOG, "{:?}", result.err());
+            return;    
+        }
+        let result = result.unwrap();
+        // expect("HTTP Request failed!");
         if result.is_success() == false {
             error!(
                 LOG,

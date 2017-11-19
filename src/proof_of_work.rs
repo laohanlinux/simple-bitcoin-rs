@@ -67,7 +67,7 @@ impl<'a> ProofOfWork<'a> {
         let prev_block_end = prev_block_hash.len();
         let hash_transactions = &self.block.hash_transactions();
         let hash_transactions_end = prev_block_end + hash_transactions.len();
-        let timestamp = &util::write_i64(self.block.timestamp);
+        let timestamp = &util::write_u32(self.block.timestamp);
         let timestamp_end = hash_transactions_end + timestamp.len();
         let target_bits = &util::write_i64(Self::TARGET_BITS);
         let target_bits_end = timestamp_end + target_bits.len();

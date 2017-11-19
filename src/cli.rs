@@ -311,7 +311,7 @@ pub fn start_server(
         block_chain,
         local_node.clone(),
         central_node.clone(),
-        mining_addr,
+        mining_addr.clone(),
     );
     let known_nodes = block_state.known_nodes.clone();
     let bc = block_state.bc.clone();
@@ -321,6 +321,7 @@ pub fn start_server(
     let addr_list = vec![local_node.clone()];
     match node_role {
         NodeRole::MiningNode => {
+            info!(LOG, "start as mining role, mining pub address is {}", mining_addr);
             server::send_addr(known_nodes.clone(), &central_node, addr_list);
             sync_block_tick(
                 known_nodes.clone(),
@@ -331,6 +332,7 @@ pub fn start_server(
             );
         }
         NodeRole::WalletNode => {
+            info!(LOG, "start as wallet role");
             server::send_addr(known_nodes.clone(), &central_node, addr_list);
             sync_block_tick(
                 known_nodes.clone(),
@@ -341,6 +343,7 @@ pub fn start_server(
             );
         }
         NodeRole::CentralNode => {
+            info!(LOG, "start as central role");
             if local_node.clone() != central_node.clone() {
                 server::send_addr(known_nodes.clone(), &central_node, addr_list);
                 sync_block_tick(

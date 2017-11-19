@@ -114,6 +114,12 @@ impl UTXOSet {
                 for vin in &tx.vin {
                     // store the unspend outputs
                     let mut update_outs = TXOutputs::new(HashMap::new());
+                    // TOD fix
+                    // let out_bytes = if let Some(bytes) = db.get_with_prefix(&vin.txid, UTXO_BLOCK_PREFIX) {
+                    //     bytes
+                    // }else {
+                    //     return;
+                    // };
                     let out_bytes = db.get_with_prefix(&vin.txid, UTXO_BLOCK_PREFIX).unwrap();
                     let outputs = TXOutputs::deserialize_outputs(&out_bytes);
 
