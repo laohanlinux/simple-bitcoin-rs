@@ -331,11 +331,6 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         debug!(LOG, "======================================");
         let block_in_transit = state.block_in_transit.clone();
         let mut block_in_transit = block_in_transit.lock().unwrap();
-        // {
-        //     Ok(block_in_transit) => block_in_transit,
-        //     Err(e) => return bad_data_json!(e),
-        // };
-        // let mut block_in_transit = block_in_transit.lock().unwrap();
         inv.items.clone().into_iter().for_each(|item| {debug!(LOG, "block item:{}", util::encode_hex(item));});
 
         *block_in_transit = inv.items.clone();
@@ -400,6 +395,9 @@ pub fn handle_block(
         );
         return ok_json!();
     }
+    if bc.get_block(&block_hash).is_some(){
+        return ok_json!();
+    } 
     bc.add_block(new_block.clone());
     info!(LOG, "added block {}", util::encode_hex(&block_hash));
 
