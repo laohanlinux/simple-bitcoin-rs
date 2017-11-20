@@ -26,7 +26,7 @@ impl DBStore {
         match db.get(key) {
             Ok(Some(value)) => {
                 let v = value.to_vec();
-                Some(Vec::from(v))
+                Some(v)
             }
             Ok(None) => None,
             Err(e) => panic!(e),

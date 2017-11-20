@@ -83,25 +83,23 @@ impl BlockChain {
         }
 
         let block_data = Block::serialize(&block);
-        self.db.clone().put_with_prefix(
+        self.db.put_with_prefix(
             &block.hash,
             &block_data,
             *BLOCK_PREFIX,
         );
 
-        let last_hash = self.db
-            .clone()
+        let last_hash = &self.db
             .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
             .unwrap();
-        let last_block_data = self.db
-            .clone()
+        let last_block_data = &self.db
             .get_with_prefix(&last_hash, *BLOCK_PREFIX)
             .unwrap();
 
         let last_block = Block::deserialize_block(&last_block_data);
 
         if block.height > last_block.height {
-            self.db.clone().put_with_prefix(
+            &self.db.put_with_prefix(
                 *LAST_BLOCK_HASH_KEY,
                 &block.hash,
                 *LAST_BLOCK_HASH_PREFIX,

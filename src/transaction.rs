@@ -73,6 +73,7 @@ impl Transaction {
         if acc < amount {
             return Err("ERROR: Not enough founds".to_owned());
         }
+
         // Build a list of inputs
         for kv in &valid_outputs {
             let txid = util::decode_hex(&kv.0);
@@ -131,7 +132,7 @@ impl Transaction {
         }
 
         // check input wether reference some pre block output
-        for tx_input in self.vin.iter() {
+        for tx_input in &self.vin {
             if prev_txs.get(&hex::encode(&tx_input.txid)).is_none() {
                 panic!("ERROR: Previous transaction is not correct");
             }
@@ -140,7 +141,7 @@ impl Transaction {
         let mut tx_copy = self.trimmed_copy();
         let mut sign_vec = Vec::new();
         let mut inid_idx = 0;
-        for tx_input in self.vin.iter() {
+        for tx_input in &self.vin {
             let prev_tx: &Transaction = prev_txs.get(&hex::encode(&tx_input.txid)).unwrap();
             // reset signation
             tx_copy.vin[inid_idx].signature = vec![];

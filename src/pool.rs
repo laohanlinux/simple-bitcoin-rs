@@ -8,7 +8,7 @@ use self::tokio_core::reactor::Core;
 use self::tokio_request::str::{get, post};
 use self::threadpool::ThreadPool;
 
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::io;
 use std::io::Write;
 use std::ops::Fn;
@@ -56,7 +56,10 @@ impl DataArg {
 
 pub fn default_call_back() -> Box<Fn(Vec<u8>) + Send> {
     Box::new(|data| {
-        let res: Data = serde_json::from_slice(&data).unwrap();
+        let res: Data = match serde_json::from_slice(&data) {
+            Ok(data) => data,
+            Err(e) => {error!(LOG, "data:'{}' deserialize fail, err: {}", String::from_utf8_lossy(&data), e); return}
+        };
         if res.status != "ok" {
             let data = String::from_utf8_lossy(&data);
             error!(LOG, "http request error: {}", data);
@@ -103,8 +106,7 @@ pub fn put_job(data_arg: DataArg) {
             return;    
         }
         let result = result.unwrap();
-        // expect("HTTP Request failed!");
-        if result.is_success() == false {
+        if result.is_success() {
             error!(
                 LOG,
                 "send get data fail, URI => {}",

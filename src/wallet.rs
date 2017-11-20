@@ -124,7 +124,7 @@ impl Wallet {
     }
 
     pub fn to_vec(&self) -> (Vec<u8>, Vec<u8>) {
-        let tmp_pair = private_pair {
+        let tmp_pair = PrivatePair {
             public_key: self.public_key.clone(),
             secret_key: self.secret_key.clone(),
         };
@@ -149,7 +149,7 @@ impl Wallet {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct private_pair {
+struct PrivatePair {
     secret_key: SecretKey,
     public_key: PublicKey,
 }
