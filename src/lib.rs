@@ -2,6 +2,11 @@
 #![allow(unused_variables)]
 #![plugin(rocket_codegen)]
 
+#![cfg_attr(feature="clippy", feature(plugin))]
+
+#![cfg_attr(feature="clippy", plugin(clippy))]
+
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -30,7 +35,6 @@ extern crate chan;
 extern crate rocket_contrib;
 
 extern crate rocket;
-
 
 #[macro_use]
 pub mod comm;

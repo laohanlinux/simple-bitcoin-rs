@@ -21,13 +21,19 @@ use utxo_set;
 use wallet;
 use pool;
 
-const MINING_SIZE: usize = 2;
+const MINING_SIZE: usize = 1;
 
 #[get("/node/list")]
 pub fn handle_node_list(state: rocket::State<router::BlockState>) -> Json<Value> {
     let known_nodes = state.known_nodes.clone();
     let known_nodes = known_nodes.lock().unwrap();
     ok_data_json!(known_nodes.clone())
+}
+
+#[get("/mempool/list")]
+pub fn handle_mempool_list(state: rocket::State<router::BlockState>) -> Json<Value> {
+    let mem_pool = state.mem_pool.lock().unwrap().clone();
+    ok_data_json!(&mem_pool)  
 }
 
 #[get("/wallet/blocks")]
@@ -395,11 +401,9 @@ pub fn handle_block(
         );
         return ok_json!();
     }
-    if bc.get_block(&block_hash).is_some(){
-        return ok_json!();
-    } 
+    
     bc.add_block(new_block.clone());
-    info!(LOG, "added block {}", util::encode_hex(&block_hash));
+    info!(LOG, "added block successfully, block hash: {} ", util::encode_hex(&block_hash));
 
     // TODO why do it in that.
     let block_in_transit = state.block_in_transit.clone();
@@ -417,9 +421,11 @@ pub fn handle_block(
             *bc_in_transit = bc_in_transit[1..].to_vec();
         } else {
             // update utxo
+            info!(LOG, "prepare to update utxos, the new block is {}", util::encode_hex(&block_hash));
             let utxo = state.utxos.clone();
             let utxos = utxo.lock().unwrap();
             utxos.update(&new_block);
+            info!(LOG, "update utxos successfully.");
         }
     }
 

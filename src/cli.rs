@@ -299,9 +299,9 @@ pub fn send(
 
 pub fn start_server(
     node: String,
-    node_role: String,
-    central_node: String,
-    mining_addr: String,
+    node_role: &str,
+    central_node: &str,
+    mining_addr: &str,
     addr: String,
     port: u16,
 ) {
@@ -310,48 +310,48 @@ pub fn start_server(
     let block_state = router::BlockState::new(
         block_chain,
         local_node.clone(),
-        central_node.clone(),
-        mining_addr.clone(),
+        central_node.to_string(),
+        mining_addr.to_string(),
     );
-    let known_nodes = block_state.known_nodes.clone();
-    let bc = block_state.bc.clone();
+    let known_nodes = Arc::clone(&block_state.known_nodes);
+    let bc = Arc::clone(&block_state.bc);
     let join = thread::spawn(move || { router::init_router(&addr, port, block_state); });
 
-    let node_role = string_to_node_role(node_role);
+    let node_role = string_to_node_role(&node_role);
     let addr_list = vec![local_node.clone()];
     match node_role {
         NodeRole::MiningNode => {
             info!(LOG, "start as mining role, mining pub address is {}", mining_addr);
-            server::send_addr(known_nodes.clone(), &central_node, addr_list);
+            server::send_addr(Arc::clone(&known_nodes), &central_node, addr_list);
             sync_block_tick(
-                known_nodes.clone(),
+                &known_nodes,
                 &central_node,
                 "/version",
                 &local_node,
-                bc,
+                &bc,
             );
         }
         NodeRole::WalletNode => {
             info!(LOG, "start as wallet role");
-            server::send_addr(known_nodes.clone(), &central_node, addr_list);
+            server::send_addr(Arc::clone(&known_nodes), &central_node, addr_list);
             sync_block_tick(
-                known_nodes.clone(),
+                &known_nodes,
                 &central_node,
                 "/version",
                 &local_node,
-                bc,
+                &bc,
             );
         }
         NodeRole::CentralNode => {
             info!(LOG, "start as central role");
             if local_node.clone() != central_node.clone() {
-                server::send_addr(known_nodes.clone(), &central_node, addr_list);
+                server::send_addr(Arc::clone(&known_nodes), central_node, addr_list);
                 sync_block_tick(
-                    known_nodes.clone(),
-                    &central_node,
+                    &known_nodes,
+                    central_node,
                     "/version",
                     &local_node,
-                    bc,
+                    &bc,
                 );
             }
         }
@@ -365,7 +365,7 @@ enum NodeRole {
     MiningNode,
 }
 
-fn string_to_node_role(node_role: String) -> NodeRole {
+fn string_to_node_role(node_role: &str) -> NodeRole {
     match &node_role[..] {
         "central" => NodeRole::CentralNode,
         "wallet" => NodeRole::WalletNode,
@@ -375,18 +375,18 @@ fn string_to_node_role(node_role: String) -> NodeRole {
 }
 
 fn sync_block_tick(
-    known_nodes: Arc<Mutex<Vec<String>>>,
+    known_nodes: &Arc<Mutex<Vec<String>>>,
     addr: &str,
     path: &str,
     local_node: &str,
-    bc: Arc<BlockChain>,
+    bc: &Arc<BlockChain>,
 ) {
     let tick = chan::tick(Duration::from_secs(3));
-    server::send_version(known_nodes.clone(), addr, path, local_node, bc.clone());
+    server::send_version(Arc::clone(known_nodes), addr, path, local_node, Arc::clone(bc));
     loop {
         tick.recv().unwrap();
-        server::send_version(known_nodes.clone(), addr, path, local_node, bc.clone());
-        sync_block_peer(known_nodes.clone(), addr, "/node/list");
+        server::send_version(Arc::clone(known_nodes), addr, path, local_node, Arc::clone(bc));
+        sync_block_peer(Arc::clone(known_nodes), addr, "/node/list");
     }
 }
 

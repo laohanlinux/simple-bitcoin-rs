@@ -359,5 +359,5 @@ fn run_server(mathes: &ArgMatches) {
     let central_node = mathes.value_of("central_node").unwrap().to_owned();
     let node_role = mathes.value_of("node_role").unwrap().to_owned();
     let mining_addr = mathes.value_of("mining_addr").unwrap().to_owned();
-    cli::start_server(store, node_role, central_node, mining_addr, addr, port);
+    cli::start_server(store, &node_role, &central_node, &mining_addr, addr, port);
 }

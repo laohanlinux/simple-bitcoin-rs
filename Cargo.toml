@@ -36,6 +36,7 @@ base64 = "*"
 threadpool = "1.0"
 io-context = "0.2.0"
 chan = "0.1.19" 
+clippy = {version = "*", optional = true}
 
 rocket = "0.3.3"
 rocket_codegen = "0.3.3"
@@ -45,6 +46,9 @@ tokio-request = { git = "https://github.com/NeoLegends/tokio-request" }
 tokio-core = "0.1"
 tokio-curl = "0.1"
 url = "1.2"
+
+[features]
+default = []
 
 [[bin]]
 path = "src/main.rs"
