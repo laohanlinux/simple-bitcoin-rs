@@ -20,6 +20,7 @@ lazy_static! {
 
 pub const DBFILE: &str = "{}/blockchain.db";
 
+// TODO add locker locks blockchain update
 pub struct BlockChain {
     tip: Arc<Mutex<Vec<u8>>>,
     pub db: Arc<DBStore>,
@@ -72,22 +73,15 @@ impl BlockChain {
         }
     }
 
-
-    pub fn add_block(&self, block: Block) {
+    // TODO check block all transaction valid
+    pub fn add_block(&self, block: Block) -> Result<(), String> {
         if self.db
             .clone()
             .get_with_prefix(&block.hash, *BLOCK_PREFIX)
             .is_some()
         {
-            return;
+            return Ok(());
         }
-
-        let block_data = Block::serialize(&block);
-        self.db.put_with_prefix(
-            &block.hash,
-            &block_data,
-            *BLOCK_PREFIX,
-        );
 
         let last_hash = &self.db
             .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
@@ -98,18 +92,35 @@ impl BlockChain {
 
         let last_block = Block::deserialize_block(&last_block_data);
 
-        if block.height > last_block.height {
-            &self.db.put_with_prefix(
-                *LAST_BLOCK_HASH_KEY,
-                &block.hash,
-                *LAST_BLOCK_HASH_PREFIX,
-            );
-            let tip = self.tip.clone();
-            {
-                let mut tip = tip.lock().unwrap();
-                *tip = block.hash.clone();
-            }
+        if block.height < last_block.height {
+            return Err("block's height too small".to_string());
         }
+        if block.height == last_block.height {
+            return Err("generate hard fork".to_string());
+        }
+        if block.height != last_block.height + 1 {
+            return Err("block's height too big".to_string());
+        }
+        // check height 
+        let block_data = Block::serialize(&block);
+        self.db.put_with_prefix(
+            &block.hash,
+            &block_data,
+            *BLOCK_PREFIX,
+        );
+
+        &self.db.put_with_prefix(
+            *LAST_BLOCK_HASH_KEY,
+            &block.hash,
+            *LAST_BLOCK_HASH_PREFIX,
+            );
+        let tip = self.tip.clone();
+        {
+            let mut tip = tip.lock().unwrap();
+            *tip = block.hash.clone();
+        }
+    
+        Ok(())
     }
 
     // TODO optizme it
@@ -200,7 +211,7 @@ impl BlockChain {
         blocks
     }
 
-    pub fn mine_block(&self, transactions: &Vec<Transaction>) -> Block {
+    pub fn mine_block(&self, transactions: &Vec<Transaction>) -> Result<Block, String> {
         for tx in transactions {
             println!("need to check transaction id is {:?}", &tx.id);
             if !self.verify_transaction(&tx) {
@@ -220,7 +231,9 @@ impl BlockChain {
         let last_height = last_block.height;
         let new_block = Block::new(transactions.clone(), last_hash, last_height + 1);
         let new_block_data = Block::serialize(&new_block);
-        self.db.clone().put_with_prefix(
+        self.add_block(new_block.clone()).map(|_| new_block)
+
+        /*self.db.clone().put_with_prefix(
             &new_block.hash,
             &new_block_data,
             *BLOCK_PREFIX,
@@ -234,8 +247,7 @@ impl BlockChain {
         {
             let mut tip = tip.lock().unwrap();
             *tip = new_block.hash.clone();
-        }
-        new_block
+        }*/
     }
 
     pub fn iter(&self) -> IterBlockchain {
@@ -268,7 +280,13 @@ impl BlockChain {
 
         let mut prevs_tx: HashMap<String, Transaction> = HashMap::new();
         for vin in &tx.vin {
-            let prev_tx = self.find_transaction(&vin.txid).unwrap();
+            let prev_tx = {
+                let res_pre_tx = self.find_transaction(&vin.txid);
+                if res_pre_tx.is_none(){
+                    return false;         
+                }
+                res_pre_tx.unwrap()
+            };
             prevs_tx.insert(util::encode_hex(&prev_tx.id), prev_tx);
         }
         tx.verify(&prevs_tx)

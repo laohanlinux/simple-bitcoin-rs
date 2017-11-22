@@ -9,6 +9,7 @@ use self::rocket::response::NamedFile;
 
 use std::io;
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
 use transaction::Transaction;
 use log::*;
@@ -21,7 +22,7 @@ use utxo_set;
 use wallet;
 use pool;
 
-const MINING_SIZE: usize = 1;
+const MINING_SIZE: usize = 2;
 
 #[get("/node/list")]
 pub fn handle_node_list(state: rocket::State<router::BlockState>) -> Json<Value> {
@@ -92,11 +93,33 @@ pub fn handle_transfer(
     if from_wallet.get_address() != transfer.from {
         return bad_data_json!("from's addr not equal secret_key's addr".to_owned());
     }
+    let lock = Arc::clone(&state.update_block_lock);
+    lock.lock().unwrap();
+
+
     let (to, amount) = (&transfer.to, transfer.amount as isize);
+    let mem_pool = state.mem_pool.clone();
+    let mem_pool = mem_pool.lock().unwrap();
+    let spend_utxos = {  
+        // 1. get the input's reference transaction 
+        let pub_key = util::public_key_to_vec(&from_wallet.public_key, false);
+        let mut spend_utxos = HashMap::new();
+        for (txid, tx) in &*mem_pool {
+            for vin in &tx.vin {
+                if vin.uses_key(&pub_key) {
+                    // it it from's unspend utxo 
+                    let ref_out_txid = util::encode_hex(&vin.txid);
+                    let ref_out_idx = vin.vout;
+                    spend_utxos.entry(ref_out_txid).or_insert(vec![]).push(ref_out_idx);
+                } 
+            }
+        }
+        spend_utxos
+    };
     let bc = state.bc.clone();
-    let utxo = utxo_set::UTXOSet::new(bc.clone());
+    let utxos = &state.utxos.lock().unwrap();
     let tx = {
-        let tx = Transaction::new_utxo_transaction(&from_wallet, to.to_owned(), amount, &utxo);
+        let tx = Transaction::new_utxo_transaction(&from_wallet, to.to_owned(), amount, utxos, Some(spend_utxos));
         if tx.is_err() {
             return bad_data_json!(tx.err());
         }
@@ -142,6 +165,10 @@ pub fn handle_get_block_data(
     state: rocket::State<router::BlockState>,
     block_data: Json<GetData>,
 ) -> Json<Value> {
+    let lock = Arc::clone(&state.update_block_lock);
+    lock.lock().unwrap();
+
+
 	info!(LOG, "get data, {}, {}", &block_data.data_type, &block_data.id);
     let get_type = &block_data.data_type;
     let bc = state.bc.clone();
@@ -189,6 +216,9 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
     let txdata = &tx.transaction;
     let ts: Transaction = serde_json::from_slice(txdata).unwrap();
     let txid = util::encode_hex(&ts.id);
+    let lock = Arc::clone(&state.update_block_lock);
+    lock.lock().unwrap();
+
     debug!(LOG, "get a transaction, txid: {}", &txid);
     // add new transaction into mempool
     let mem_pool = state.mem_pool.clone();
@@ -238,12 +268,25 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                 if txs.len() <= 1 {
                     return ok_json!();
                 }
-
+                
                 let new_block = bc.mine_block(&txs);
-                let utxo = utxo_set::UTXOSet::new(bc);
+                if new_block.is_err(){
+                    // delete dirty transaction
+                    for ts in &txs {
+                        mem_pool.remove(&util::encode_hex(&ts.id));
+                    }
+                    return bad_data_json!(new_block.err());
+                }
+                let new_block = new_block.unwrap();
+                info!(LOG, "a new block {} has bee mined...", util::encode_hex(&new_block.hash)); 
+                let utxos = &state.utxos.lock().unwrap();
+                utxos.update(&new_block);
+                
+                //let utxo = utxo_set::UTXOSet::new(bc);
                 //reset unspend transations
                 // TODO use update instead of reindex
-                utxo.reindex();
+                //utxo.reindex();
+
                 info!(
                     LOG,
                     "mining a new block, hash is {}",
@@ -283,6 +326,9 @@ pub fn handle_get_blocks(
     state: rocket::State<router::BlockState>,
     blocks: Json<GetBlocks>,
 ) -> Json<Value> {
+    let lock = Arc::clone(&state.update_block_lock);
+    lock.lock().unwrap();
+
     let bc = state.bc.clone();
     let hashes: Vec<Vec<u8>> = bc.get_block_hashes();
     send_inv(
@@ -304,6 +350,9 @@ pub fn handle_version(
     state: rocket::State<router::BlockState>,
     version: Json<Version>,
 ) -> Json<Value> {
+    let lock = Arc::clone(&state.update_block_lock);
+    lock.lock().unwrap();
+
     let bc = state.bc.clone();
     let my_best_height = bc.get_best_height();
     let foreigner_best_height = version.best_height;
@@ -324,7 +373,10 @@ pub fn handle_version(
 
 #[post("/inv", format = "application/json", data = "<inv>")]
 pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> Json<Value> {
-    info!(
+    let lock = Arc::clone(&state.update_block_lock);
+    lock.lock().unwrap();
+
+   info!(
         LOG,
         "Received inventory with {} {}",
         inv.items.len(),
@@ -337,7 +389,7 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         debug!(LOG, "======================================");
         let block_in_transit = state.block_in_transit.clone();
         let mut block_in_transit = block_in_transit.lock().unwrap();
-        inv.items.clone().into_iter().for_each(|item| {debug!(LOG, "block item:{}", util::encode_hex(item));});
+        inv.items.clone().into_iter().for_each(|item| {debug!(LOG, "addr_from:{}, block item:{}", add_from, util::encode_hex(item));});
 
         *block_in_transit = inv.items.clone();
         let block_hash = inv.items[0].clone();
@@ -362,7 +414,7 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
     }
     if inv_type == "tx" {
         let txid = inv.items[0].clone();
-        let mem_pool = state.mem_pool.clone();
+        let mem_pool = Arc::clone(&state.mem_pool);
         let mem_pool = mem_pool.lock().unwrap();
         if mem_pool.get(&util::encode_hex(&txid)).is_none() {
         	info!(LOG, "{} transaction not found in local node, start to download from remote node:{}", util::encode_hex(&txid), &inv.add_from);
@@ -384,14 +436,17 @@ pub fn handle_block(
     state: rocket::State<router::BlockState>,
     block_data: Json<Block>,
 ) -> Json<Value> {
-    info!(LOG, "do block handle");
+     let lock = Arc::clone(&state.update_block_lock);
+    lock.lock().unwrap();
+
+info!(LOG, "do block handle");
     let bc = state.bc.clone();
     let local_node = state.local_node.clone();
     let new_block = block::Block::try_deserialize_block(&block_data.block);
     if new_block.is_err() {
         return bad_data_json!(new_block.err().unwrap());
     }
-    let new_block = new_block.ok().unwrap();
+    let new_block = new_block.unwrap();
     let block_hash = new_block.hash.clone();
     if bc.get_block(&block_hash).is_some() {
         warn!(
@@ -401,9 +456,15 @@ pub fn handle_block(
         );
         return ok_json!();
     }
-    
-    bc.add_block(new_block.clone());
-    info!(LOG, "added block successfully, block hash: {} ", util::encode_hex(&block_hash));
+   
+    let lock = Arc::clone(&state.update_block_lock);
+    lock.lock().unwrap();
+    if let Err(e) = bc.add_block(new_block.clone()) {
+        error!(LOG,"add block faild, err:{}", e);
+        return bad_data_json!(e);
+    }
+    info!(LOG, "added block successfully, block source:{}, block hash: {} ",
+           &block_data.add_from, util::encode_hex(&block_hash));
 
     // TODO why do it in that.
     let block_in_transit = state.block_in_transit.clone();
@@ -422,8 +483,8 @@ pub fn handle_block(
         } else {
             // update utxo
             info!(LOG, "prepare to update utxos, the new block is {}", util::encode_hex(&block_hash));
-            let utxo = state.utxos.clone();
-            let utxos = utxo.lock().unwrap();
+            let utxos = &state.utxos.lock().unwrap();
+            //let utxos = utxo.lock().unwrap();
             utxos.update(&new_block);
             info!(LOG, "update utxos successfully.");
         }

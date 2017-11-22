@@ -263,7 +263,7 @@ pub fn send(
     let tx = {
         let wallets = Wallets::new_wallets(wallet_store).unwrap();
         let from_wallet = wallets.get_wallet(from.clone()).unwrap();
-        transaction::Transaction::new_utxo_transaction(&from_wallet, to.clone(), amount, &utxo)?
+        transaction::Transaction::new_utxo_transaction(&from_wallet, to.clone(), amount, &utxo, None)?
     };
     info!(LOG, "result: {:?}", tx.id);
     {
@@ -285,7 +285,7 @@ pub fn send(
     if mine_now {
         let cbtx = transaction::Transaction::new_coinbase_tx(from.clone(), "".to_owned());
         let txs = vec![cbtx, tx];
-        let new_block = block_chain.clone().mine_block(&txs);
+        let new_block = block_chain.clone().mine_block(&txs).unwrap();
         utxo.update(&new_block);
         info!(LOG, "{:?} send {} to {:?}", from, amount, to);
         return Ok(());
@@ -420,7 +420,6 @@ fn sync_block_peer(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str)
                         known_nodes.push(addr);
                     }
                 });
-                //info!(LOG, "There are {} known nodes now", known_nodes.len());
             }
         }
     });

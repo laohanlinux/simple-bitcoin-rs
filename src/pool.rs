@@ -107,17 +107,17 @@ pub fn put_job(data_arg: DataArg) {
         }
         let result = result.unwrap();
         if result.is_success() {
+            let body = result.body();
+            (data_arg.call_back)(body.to_vec());
+        } else {
             error!(
                 LOG,
                 "send get data fail, URI => {}",
                 addr,
-            );
-        } else {
-            let body = result.body();
-            (data_arg.call_back)(body.to_vec());
+                );
         }
         /* let body = result.body();
-        info!(
+           info!(
             LOG,
             "send get data successfully, URI => {}, data => {}",
             addr,

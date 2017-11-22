@@ -21,6 +21,7 @@ pub struct BlockState {
     pub mem_pool: Arc<Mutex<HashMap<String, transaction::Transaction>>>,
     pub local_node: Arc<String>,
     pub ctx: Context,
+    pub update_block_lock: Arc<Mutex<()>>,
 }
 
 impl BlockState {
@@ -47,6 +48,7 @@ impl BlockState {
             mem_pool: Arc::new(Mutex::new(HashMap::new())),
             local_node: Arc::new(local_node),
             ctx: Context::background(),
+            update_block_lock: Arc::new(Mutex::new(())),
         }
     }
 }

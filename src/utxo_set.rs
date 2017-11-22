@@ -26,6 +26,42 @@ impl UTXOSet {
         &self,
         pubkey_hash: &[u8],
         amout: isize,
+        spend_outs: Option<HashMap<String, Vec<isize>>>,
+    ) -> (isize, HashMap<String, Vec<isize>>) {
+        let mut unspent_outs: HashMap<String, Vec<isize>> = HashMap::new();
+        let mut accumulated = 0;
+        let db = self.blockchain.db.clone();
+        let spend_outs = spend_outs.unwrap_or_default();
+       
+        let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
+        for kv in &kvs {
+            let txid = util::encode_hex(&kv.0);
+            let outs = TXOutputs::deserialize_outputs(&kv.1);
+            for (out_idx, out) in &*outs.outputs {
+                // check wether including spend_outs
+                let flag = if let Some(items) = spend_outs.get(&txid) {
+                    items.into_iter().any(|elem| {elem == out_idx})  
+                }else{false};
+                
+                if !flag {
+                    if out.is_locked_with_key(pubkey_hash) && accumulated < amout {
+                        accumulated += out.value;
+                        unspent_outs.entry(txid.clone()).or_insert(vec![]).push(
+                            *out_idx,
+                            );
+                    }
+                } 
+            }
+        }
+
+        (accumulated, unspent_outs)
+    }
+    
+    /*// HashMap =>  [txid, Vec![out'idx1, out'idx2]]
+    pub fn find_spend_able_outputs(
+        &self,
+        pubkey_hash: &[u8],
+        amout: isize,
     ) -> (isize, HashMap<String, Vec<isize>>) {
         let mut unspent_outs: HashMap<String, Vec<isize>> = HashMap::new();
         let mut accumulated = 0;
@@ -47,6 +83,7 @@ impl UTXOSet {
 
         (accumulated, unspent_outs)
     }
+    */
 
     // |netenv|pub_key_hash|checksum|
     pub fn find_utxo(&self, pubkey_hash: &[u8]) -> Vec<TXOutput> {
@@ -108,18 +145,13 @@ impl UTXOSet {
 
     // 增加新块，新块的交易输入可能包含了当前的“未花费”输出，这些输出需要清理掉
     pub fn update(&self, block: &block::Block) {
+        assert_eq!(self.blockchain.get_block(&block.hash).is_some(), true);
         let db = self.blockchain.db.clone();
         for tx in &block.transactions {
             if !tx.is_coinbase() {
                 for vin in &tx.vin {
                     // store the unspend outputs
                     let mut update_outs = TXOutputs::new(HashMap::new());
-                    // TOD fix
-                    // let out_bytes = if let Some(bytes) = db.get_with_prefix(&vin.txid, UTXO_BLOCK_PREFIX) {
-                    //     bytes
-                    // }else {
-                    //     return;
-                    // };
                     let out_bytes = db.get_with_prefix(&vin.txid, UTXO_BLOCK_PREFIX).unwrap();
                     let outputs = TXOutputs::deserialize_outputs(&out_bytes);
 
