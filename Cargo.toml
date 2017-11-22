@@ -37,6 +37,7 @@ threadpool = "1.0"
 io-context = "0.2.0"
 chan = "0.1.19" 
 clippy = {version = "*", optional = true}
+base_emoji = {git = "https://github.com/badboy/base-emoji-rs.git"}
 
 rocket = "0.3.3"
 rocket_codegen = "0.3.3"

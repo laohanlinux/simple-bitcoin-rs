@@ -2,6 +2,7 @@ extern crate serde_json;
 extern crate rocket;
 extern crate rocket_contrib;
 extern crate lazy_static;
+extern crate base_emoji;
 
 use self::rocket::request::Form;
 use self::rocket_contrib::{Json, Value};
@@ -22,7 +23,8 @@ use utxo_set;
 use wallet;
 use pool;
 
-const MINING_SIZE: usize = 2;
+const MINING_SIZE: usize = 1;
+const HAMMER: &str = "🔨";
 
 #[get("/node/list")]
 pub fn handle_node_list(state: rocket::State<router::BlockState>) -> Json<Value> {
@@ -39,11 +41,8 @@ pub fn handle_mempool_list(state: rocket::State<router::BlockState>) -> Json<Val
 
 #[get("/wallet/blocks")]
 pub fn handle_list_block(state: rocket::State<router::BlockState>) -> Json<Value> {
-    let block = state.bc.clone().get_block_hashes();
-    let hashes: Vec<String> = block
-        .into_iter()
-        .map(|item| util::encode_hex(item))
-        .collect();
+    let block = &state.bc.lock().unwrap();
+    let hashes = block.block_hashes();
     ok_data_json!(hashes)
 }
 
@@ -93,9 +92,6 @@ pub fn handle_transfer(
     if from_wallet.get_address() != transfer.from {
         return bad_data_json!("from's addr not equal secret_key's addr".to_owned());
     }
-    let lock = Arc::clone(&state.update_block_lock);
-    lock.lock().unwrap();
-
 
     let (to, amount) = (&transfer.to, transfer.amount as isize);
     let mem_pool = state.mem_pool.clone();
@@ -116,15 +112,12 @@ pub fn handle_transfer(
         }
         spend_utxos
     };
-    let bc = state.bc.clone();
-    let utxos = &state.utxos.lock().unwrap();
-    let tx = {
-        let tx = Transaction::new_utxo_transaction(&from_wallet, to.to_owned(), amount, utxos, Some(spend_utxos));
-        if tx.is_err() {
-            return bad_data_json!(tx.err());
-        }
-        tx.unwrap()
-    };
+    let bc = &state.bc.lock().unwrap();
+    let tx = bc.create_new_utxo_transaction(&from_wallet, to, amount, Some(spend_utxos));
+    if tx.is_err(){
+        return bad_data_json!(tx.err());
+    }
+    let tx = tx.unwrap();
     let local_addr = state.local_node.clone();
     let known_nodes = state.known_nodes.clone();
     let central_node = {
@@ -165,17 +158,14 @@ pub fn handle_get_block_data(
     state: rocket::State<router::BlockState>,
     block_data: Json<GetData>,
 ) -> Json<Value> {
-    let lock = Arc::clone(&state.update_block_lock);
-    lock.lock().unwrap();
-
 
 	info!(LOG, "get data, {}, {}", &block_data.data_type, &block_data.id);
     let get_type = &block_data.data_type;
-    let bc = state.bc.clone();
+    let bc = &state.bc.lock().unwrap();
     let local_node = state.local_node.clone();
     if get_type == "block" {
     	let block_hash = &block_data.id;
-        let block = bc.get_block(&util::decode_hex(block_hash));
+        let block = bc.block(block_hash);
         if block.is_none() {
             return bad_json!();
         }
@@ -216,18 +206,14 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
     let txdata = &tx.transaction;
     let ts: Transaction = serde_json::from_slice(txdata).unwrap();
     let txid = util::encode_hex(&ts.id);
-    let lock = Arc::clone(&state.update_block_lock);
-    lock.lock().unwrap();
 
     debug!(LOG, "get a transaction, txid: {}", &txid);
     // add new transaction into mempool
-    let mem_pool = state.mem_pool.clone();
-    let mut mem_pool = mem_pool.lock().unwrap();
+    let mut mem_pool = state.mem_pool.lock().unwrap();
     mem_pool.entry(txid).or_insert(ts.clone());
-
     // local node addr
     let local_node = state.local_node.clone();
-
+    let bc = &state.bc.lock().unwrap();
     let known_nodes = state.known_nodes.clone();
     let ref known_nodes = {
         let know_nodes = known_nodes.lock().unwrap();
@@ -254,49 +240,19 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
         loop {
             if mem_pool.len() >= MINING_SIZE {
             	debug!(LOG, "i am mining node:{} start to mining", &mining_addr);
-                // mine transactions
-                let mut txs = vec![];
-                let bc = state.bc.clone();
-                let mining_addr: &str = &mining_addr.clone();
-                let cbtx = Transaction::new_coinbase_tx(mining_addr.to_owned(), "".to_owned());
-                txs.push(cbtx);
-                for (txid, ts) in &*mem_pool {
-                    if bc.verify_transaction(ts) {
-                        txs.push(ts.clone());
-                    }
+                let mem_pool_copy = mem_pool.clone();
+                let res = bc.mine_new_block(state.mining_address.to_string(), &mem_pool_copy);
+                if res.is_err(){
+                    error!(LOG, "mine block fail, err:{}", res.err().unwrap());
+                    return bad_data_json!(res.err().unwrap());
                 }
-                if txs.len() <= 1 {
-                    return ok_json!();
-                }
-                
-                let new_block = bc.mine_block(&txs);
-                if new_block.is_err(){
-                    // delete dirty transaction
-                    for ts in &txs {
-                        mem_pool.remove(&util::encode_hex(&ts.id));
-                    }
-                    return bad_data_json!(new_block.err());
-                }
-                let new_block = new_block.unwrap();
-                info!(LOG, "a new block {} has bee mined...", util::encode_hex(&new_block.hash)); 
-                let utxos = &state.utxos.lock().unwrap();
-                utxos.update(&new_block);
-                
-                //let utxo = utxo_set::UTXOSet::new(bc);
-                //reset unspend transations
-                // TODO use update instead of reindex
-                //utxo.reindex();
-
+                let new_block_hash = res.unwrap();
                 info!(
                     LOG,
-                    "mining a new block, hash is {}",
-                    util::encode_hex(&new_block.hash)
+                    "🔨 mining a new block, hash is {}",
+                    util::encode_hex(&new_block_hash)
                 );
-
-                // delete dirty transaction
-                for ts in &txs {
-                    mem_pool.remove(&util::encode_hex(&ts.id));
-                }
+                *mem_pool = mem_pool_copy;
 
                 // notify other nodes to sync the new block
                 &known_nodes.into_iter().for_each(|node| if *node !=
@@ -307,7 +263,7 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                         &node,
                         &local_node,
                         "block",
-                        vec![new_block.hash.clone()],
+                        vec![util::decode_hex(new_block_hash)],
                     )
                 });
             }
@@ -326,22 +282,17 @@ pub fn handle_get_blocks(
     state: rocket::State<router::BlockState>,
     blocks: Json<GetBlocks>,
 ) -> Json<Value> {
-    let lock = Arc::clone(&state.update_block_lock);
-    lock.lock().unwrap();
 
-    let bc = state.bc.clone();
-    let hashes: Vec<Vec<u8>> = bc.get_block_hashes();
+    let bc = &state.bc.lock().unwrap();
+    let hashes: Vec<String> = bc.block_hashes();
+    let hashes_vec: Vec<Vec<u8>> = hashes.into_iter().map(|item| util::decode_hex(&item)).collect();
     send_inv(
         state.known_nodes.clone(),
         &blocks.add_from,
         &state.local_node,
         "block",
-        hashes.clone(),
+        hashes_vec,
     );
-    let hashes: Vec<String> = hashes
-        .into_iter()
-        .map(|item| util::encode_hex(item))
-        .collect();
     ok_data_json!(hashes)
 }
 
@@ -350,11 +301,8 @@ pub fn handle_version(
     state: rocket::State<router::BlockState>,
     version: Json<Version>,
 ) -> Json<Value> {
-    let lock = Arc::clone(&state.update_block_lock);
-    lock.lock().unwrap();
-
-    let bc = state.bc.clone();
-    let my_best_height = bc.get_best_height();
+    let bc = &state.bc.lock().unwrap();
+    let my_best_height = bc.best_height();
     let foreigner_best_height = version.best_height;
     let local_node = state.local_node.clone();
     if my_best_height < foreigner_best_height {
@@ -365,7 +313,7 @@ pub fn handle_version(
             &version.addr_from,
             "/version",
             &local_node,
-            bc,
+            bc.block_chain(),
         );
     }
     ok_json!()
@@ -373,8 +321,6 @@ pub fn handle_version(
 
 #[post("/inv", format = "application/json", data = "<inv>")]
 pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> Json<Value> {
-    let lock = Arc::clone(&state.update_block_lock);
-    lock.lock().unwrap();
 
    info!(
         LOG,
@@ -436,11 +382,9 @@ pub fn handle_block(
     state: rocket::State<router::BlockState>,
     block_data: Json<Block>,
 ) -> Json<Value> {
-     let lock = Arc::clone(&state.update_block_lock);
-    lock.lock().unwrap();
-
-info!(LOG, "do block handle");
-    let bc = state.bc.clone();
+     
+    info!(LOG, "do block handle");
+    let bc = &state.bc.lock().unwrap();
     let local_node = state.local_node.clone();
     let new_block = block::Block::try_deserialize_block(&block_data.block);
     if new_block.is_err() {
@@ -448,20 +392,10 @@ info!(LOG, "do block handle");
     }
     let new_block = new_block.unwrap();
     let block_hash = new_block.hash.clone();
-    if bc.get_block(&block_hash).is_some() {
-        warn!(
-            LOG,
-            "block {} has exists, ignore it",
-            util::encode_hex(&block_hash)
-        );
-        return ok_json!();
-    }
-   
-    let lock = Arc::clone(&state.update_block_lock);
-    lock.lock().unwrap();
-    if let Err(e) = bc.add_block(new_block.clone()) {
-        error!(LOG,"add block faild, err:{}", e);
-        return bad_data_json!(e);
+    let res = bc.add_new_block(new_block); 
+    if res.is_err(){
+        error!(LOG,"add block faild, err:{:?}", res.err());
+        return bad_data_json!(res.err());
     }
     info!(LOG, "added block successfully, block source:{}, block hash: {} ",
            &block_data.add_from, util::encode_hex(&block_hash));
@@ -483,9 +417,7 @@ info!(LOG, "do block handle");
         } else {
             // update utxo
             info!(LOG, "prepare to update utxos, the new block is {}", util::encode_hex(&block_hash));
-            let utxos = &state.utxos.lock().unwrap();
-            //let utxos = utxo.lock().unwrap();
-            utxos.update(&new_block);
+            bc.update_utxo(&new_block);
             info!(LOG, "update utxos successfully.");
         }
     }

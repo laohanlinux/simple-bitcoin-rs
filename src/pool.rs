@@ -89,7 +89,7 @@ pub fn put_job(data_arg: DataArg) {
             &data_arg.headers,
         );
         let addr = format!("http://{}{}", addr, path);
-        debug!(LOG, "addr => {}", &addr);
+        //debug!(LOG, "addr => {}", &addr);
         let mut evloop = Core::new().unwrap();
 
         let req = if method.as_str() == "GET" {

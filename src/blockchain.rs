@@ -73,6 +73,14 @@ impl BlockChain {
         }
     }
 
+    pub fn last_block_hash(&self) -> String {
+        let last_hash = self.db
+            .clone()
+            .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
+            .unwrap();
+        util::encode_hex(&last_hash)
+    }
+
     // TODO check block all transaction valid
     pub fn add_block(&self, block: Block) -> Result<(), String> {
         if self.db

@@ -2,26 +2,113 @@ extern crate rocket;
 extern crate io_context;
 extern crate threadpool;
 
-use self::io_context::Context;
-
 use blockchain::BlockChain;
 use server;
-use transaction;
+use transaction::Transaction;
 use utxo_set;
+use util;
+use wallet::Wallet;
+use block;
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
+pub struct BlockLock {
+    bc: Arc<BlockChain>,
+    utxos: Arc<utxo_set::UTXOSet>,
+}
+
+impl BlockLock {
+    fn new(bc: Arc<BlockChain>, utxos: Arc<utxo_set::UTXOSet>) -> BlockLock{
+        BlockLock{
+            bc: bc,
+            utxos: utxos,
+        }
+    }
+    pub fn block_hashes(&self) -> Vec<String>{
+        let hashes = &self.bc.get_block_hashes();
+        hashes
+        .into_iter()
+        .map(|item| util::encode_hex(item))
+        .collect()
+    }
+
+    pub fn create_new_utxo_transaction(
+        &self,
+        from_wallet: &Wallet,
+        to: &str,
+        amount: isize,
+        spend_utxos: Option<HashMap<String, Vec<isize>>>,
+    ) -> Result<Transaction, String> {
+        let utxos = &self.utxos;
+        let tx = Transaction::new_utxo_transaction(&from_wallet, to.to_owned(), amount, utxos, spend_utxos);
+        tx.map_err(|e| {format!("{:?}", tx.err())})
+    }
+    
+    pub fn add_new_block(&self, new_block: block::Block) -> Result<(), String> {
+        let block_hash = new_block.hash;
+        if self.bc.get_block(&block_hash).is_some() {
+            return Err(format!("{} has exist. ignore", util::encode_hex(&block_hash)));
+        }
+
+        // TODO check new block
+        self.bc.add_block(new_block)
+    }
+
+    pub fn block(&self, hash: &str)-> Option<block::Block>{
+        self.bc.get_block(&util::decode_hex(hash))
+    }
+
+    pub fn best_height(&self) -> isize {
+        self.bc.get_best_height()
+    }
+
+    // TODO Opz mining step
+    pub fn mine_new_block(&self, mine_addr: String, mem_pool: &HashMap<String, Transaction>) -> Result<String, String> {
+        let mut txs = vec![];
+        let cbtx = Transaction::new_coinbase_tx(mine_addr, "".to_owned());
+        txs.push(cbtx);
+        for (txid, ts) in mem_pool {
+            if self.bc.verify_transaction(ts) {
+                txs.push(ts.clone());
+            }
+        }
+        if txs.len() <= 1 {
+            return Err("no transactions".to_string());
+        }
+
+        let new_block = self.bc.mine_block(&txs);
+        if new_block.is_err(){
+            // delete dirty transaction
+            for ts in &txs {
+                mem_pool.remove(&util::encode_hex(&ts.id));
+            }
+            return Err(format!("{:?}", new_block.err()));
+        }
+        let new_block = new_block.unwrap();
+        self.utxos.update(&new_block);
+        for ts in &txs {
+            mem_pool.remove(&util::encode_hex(&ts.id));
+        }
+        Ok(util::encode_hex(&new_block.hash))
+    }
+
+    pub fn update_utxo(&self, new_block: &block::Block) {
+        self.utxos.update(new_block);
+    }
+
+    pub fn block_chain(&self)-> Arc<BlockChain> {
+        Arc::clone(&self.bc)
+    }
+}
+
 pub struct BlockState {
-    pub bc: Arc<BlockChain>,
-    pub utxos: Arc<Mutex<utxo_set::UTXOSet>>,
+    pub bc: Arc<Mutex<BlockLock>>,
     pub known_nodes: Arc<Mutex<Vec<String>>>,
     pub mining_address: Arc<String>,
     pub block_in_transit: Arc<Mutex<Vec<Vec<u8>>>>,
-    pub mem_pool: Arc<Mutex<HashMap<String, transaction::Transaction>>>,
+    pub mem_pool: Arc<Mutex<HashMap<String, Transaction>>>,
     pub local_node: Arc<String>,
-    pub ctx: Context,
-    pub update_block_lock: Arc<Mutex<()>>,
 }
 
 impl BlockState {
@@ -31,24 +118,25 @@ impl BlockState {
         central_node: String,
         mining_address: String,
     ) -> BlockState {
-        let arc_bc = Arc::new(bc);
-        let utxo_set = utxo_set::UTXOSet::new(arc_bc.clone());
-        utxo_set.reindex();
-        let mut ctx = Context::background();
+
+        let bc = Arc::new(bc);
+        let utxos = utxo_set::UTXOSet::new(Arc::clone(&bc)); 
+        utxos.reindex();
+
         let mut known_nodes = vec![central_node.clone()];
         if known_nodes[0] != local_node.clone() {
             known_nodes.push(local_node.clone());
         }
+        
+        let bc_lock = BlockLock::new(Arc::clone(&bc), Arc::new(utxos));
+
         BlockState {
-            bc: arc_bc,
-            utxos: Arc::new(Mutex::new(utxo_set)),
+            bc: Arc::new(Mutex::new(bc_lock)),
             known_nodes: Arc::new(Mutex::new(known_nodes)),
             mining_address: Arc::new(mining_address),
             block_in_transit: Arc::new(Mutex::new(vec![])),
             mem_pool: Arc::new(Mutex::new(HashMap::new())),
             local_node: Arc::new(local_node),
-            ctx: Context::background(),
-            update_block_lock: Arc::new(Mutex::new(())),
         }
     }
 }

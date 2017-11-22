@@ -76,7 +76,9 @@ pub fn create_blockchain(address: String, node: String) -> Result<(), String> {
     info!(LOG, "block chain disk data create successfully.");
     let ref_bc = Arc::new(blockchain);
     UTXOSet::new(ref_bc.clone()).reindex();
+    let last_hash = ref_bc.last_block_hash();
     info!(LOG, "utxoset reindexs successfully.");
+    info!(LOG, "genius block {}", last_hash);
     Ok(())
 }
 
@@ -314,11 +316,13 @@ pub fn start_server(
         mining_addr.to_string(),
     );
     let known_nodes = Arc::clone(&block_state.known_nodes);
-    let bc = Arc::clone(&block_state.bc);
+    let bc = Arc::clone(&block_state.bc.lock().unwrap().block_chain());
     let join = thread::spawn(move || { router::init_router(&addr, port, block_state); });
 
     let node_role = string_to_node_role(&node_role);
     let addr_list = vec![local_node.clone()];
+
+    let bc = Arc::clone(&bc);
     match node_role {
         NodeRole::MiningNode => {
             info!(LOG, "start as mining role, mining pub address is {}", mining_addr);
@@ -328,7 +332,7 @@ pub fn start_server(
                 &central_node,
                 "/version",
                 &local_node,
-                &bc,
+                bc,
             );
         }
         NodeRole::WalletNode => {
@@ -339,7 +343,7 @@ pub fn start_server(
                 &central_node,
                 "/version",
                 &local_node,
-                &bc,
+                bc,
             );
         }
         NodeRole::CentralNode => {
@@ -351,7 +355,7 @@ pub fn start_server(
                     central_node,
                     "/version",
                     &local_node,
-                    &bc,
+                    bc,
                 );
             }
         }
@@ -379,13 +383,14 @@ fn sync_block_tick(
     addr: &str,
     path: &str,
     local_node: &str,
-    bc: &Arc<BlockChain>,
+    bc: Arc<BlockChain>,
 ) {
     let tick = chan::tick(Duration::from_secs(3));
-    server::send_version(Arc::clone(known_nodes), addr, path, local_node, Arc::clone(bc));
+    
+    server::send_version(Arc::clone(known_nodes), addr, path, local_node, bc);
     loop {
         tick.recv().unwrap();
-        server::send_version(Arc::clone(known_nodes), addr, path, local_node, Arc::clone(bc));
+        server::send_version(Arc::clone(known_nodes), addr, path, local_node, bc);
         sync_block_peer(Arc::clone(known_nodes), addr, "/node/list");
     }
 }
