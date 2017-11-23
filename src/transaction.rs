@@ -97,11 +97,11 @@ impl Transaction {
         };
         let txid = tx.hash();
         tx.id = txid;
-        utxoset.blockchain.sign_transaction(
+        let res = utxoset.blockchain.sign_transaction(
             &mut tx,
             &wallet.secret_key,
         );
-        Ok(tx)
+        res.map(|_| tx)
     }
     
     // TODO add

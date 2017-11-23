@@ -271,13 +271,17 @@ impl BlockChain {
         IterBlockchain::new(db, current_block)
     }
 
-    pub fn sign_transaction(&self, tx: &mut Transaction, secret_key: &SecretKey) {
+    pub fn sign_transaction(&self, tx: &mut Transaction, secret_key: &SecretKey) -> Result<(), String> {
         let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
         for vin in &tx.vin {
-            let prev_tx = self.find_transaction(&vin.txid).unwrap();
-            prev_txs.insert(util::encode_hex(&prev_tx.id), prev_tx);
+            if let Some(prev_tx) = self.find_transaction(&vin.txid) {
+                prev_txs.insert(util::encode_hex(&prev_tx.id), prev_tx);
+            }else {
+                return Err(format!("not found the transation, txid:{}", util::encode_hex(&vin.txid)));
+            }
         }
         tx.sign(&secret_key, &prev_txs);
+        Ok(())
     }
 
     // TODO why coinbase need not verify
