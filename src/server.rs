@@ -36,7 +36,14 @@ pub fn handle_node_list(state: rocket::State<router::BlockState>) -> Json<Value>
 #[get("/mempool/list")]
 pub fn handle_mempool_list(state: rocket::State<router::BlockState>) -> Json<Value> {
     let mem_pool = state.mem_pool.lock().unwrap().clone();
-    ok_data_json!(&mem_pool)  
+    ok_data_json!(&mem_pool)
+}
+
+#[get("/test/blocks")]
+pub fn handle_test_list_block(state: rocket::State<router::BlockState>) -> Json<Value> {
+    let bc = &state.bc.lock().unwrap();
+    let hashes = bc.test_block_hashes();
+    ok_data_json!(hashes)
 }
 
 #[get("/wallet/blocks")]
@@ -96,25 +103,27 @@ pub fn handle_transfer(
     let (to, amount) = (&transfer.to, transfer.amount as isize);
     let mem_pool = state.mem_pool.clone();
     let mem_pool = mem_pool.lock().unwrap();
-    let spend_utxos = {  
-        // 1. get the input's reference transaction 
+    let spend_utxos = {
+        // 1. get the input's reference transaction
         let pub_key = util::public_key_to_vec(&from_wallet.public_key, false);
         let mut spend_utxos = HashMap::new();
         for (txid, tx) in &*mem_pool {
             for vin in &tx.vin {
                 if vin.uses_key(&pub_key) {
-                    // it it from's unspend utxo 
+                    // it it from's unspend utxo
                     let ref_out_txid = util::encode_hex(&vin.txid);
                     let ref_out_idx = vin.vout;
-                    spend_utxos.entry(ref_out_txid).or_insert(vec![]).push(ref_out_idx);
-                } 
+                    spend_utxos.entry(ref_out_txid).or_insert(vec![]).push(
+                        ref_out_idx,
+                    );
+                }
             }
         }
         spend_utxos
     };
     let bc = &state.bc.lock().unwrap();
     let tx = bc.create_new_utxo_transaction(&from_wallet, to, amount, Some(spend_utxos));
-    if tx.is_err(){
+    if tx.is_err() {
         return bad_data_json!(tx.err());
     }
     let tx = tx.unwrap();
@@ -159,12 +168,17 @@ pub fn handle_get_block_data(
     block_data: Json<GetData>,
 ) -> Json<Value> {
 
-	info!(LOG, "get data, {}, {}", &block_data.data_type, &block_data.id);
+    info!(
+        LOG,
+        "get data, {}, {}",
+        &block_data.data_type,
+        &block_data.id
+    );
     let get_type = &block_data.data_type;
     let bc = &state.bc.lock().unwrap();
     let local_node = state.local_node.clone();
     if get_type == "block" {
-    	let block_hash = &block_data.id;
+        let block_hash = &block_data.id;
         let block = bc.block(block_hash);
         if block.is_none() {
             return bad_json!();
@@ -184,11 +198,16 @@ pub fn handle_get_block_data(
             let tx = mem_pool.get(&txid.clone());
             if tx.is_none() {
                 warn!(LOG, "=======================");
-            	return bad_data_json!(format!("{} not found in {}", &txid, &local_node));
+                return bad_data_json!(format!("{} not found in {}", &txid, &local_node));
             }
             tx.unwrap().clone()
         };
-        warn!(LOG, "find a txid {}, transfer it to {}", txid, &block_data.add_from);
+        warn!(
+            LOG,
+            "find a txid {}, transfer it to {}",
+            txid,
+            &block_data.add_from
+        );
         send_tx(
             state.known_nodes.clone(),
             &block_data.add_from,
@@ -223,7 +242,7 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
     if local_node.to_lowercase() == known_nodes[0].to_lowercase() {
         let txid = &ts.id;
         for node in known_nodes {
-        	info!(LOG, "forward transaction to {}", &node);
+            info!(LOG, "forward transaction to {}", &node);
             send_inv(
                 state.known_nodes.clone(),
                 node,
@@ -232,14 +251,14 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                 vec![txid.to_vec()],
             );
         }
-    } else if state.mining_address.clone().len() >0 {
+    } else if state.mining_address.clone().len() > 0 {
         // the local node is a mining node, start to mining!
         let mining_addr = state.mining_address.clone();
 
         info!(LOG, "start to mining...");
         loop {
             if mem_pool.len() >= MINING_SIZE {
-            	debug!(LOG, "i am mining node:{} start to mining", &mining_addr);
+                debug!(LOG, "i am mining node:{} start to mining", &mining_addr);
                 let mut mem_pool_copy = mem_pool.clone();
                 let res = bc.mine_new_block(state.mining_address.to_string(), &mut mem_pool_copy);
                 if let Err(ref e) = res {
@@ -285,7 +304,10 @@ pub fn handle_get_blocks(
 
     let bc = &state.bc.lock().unwrap();
     let ref hashes: Vec<String> = bc.block_hashes();
-    let hashes_vec: Vec<Vec<u8>> = hashes.into_iter().map(|item| util::decode_hex(&item)).collect();
+    let hashes_vec: Vec<Vec<u8>> = hashes
+        .into_iter()
+        .map(|item| util::decode_hex(&item))
+        .collect();
     send_inv(
         state.known_nodes.clone(),
         &blocks.add_from,
@@ -322,7 +344,7 @@ pub fn handle_version(
 #[post("/inv", format = "application/json", data = "<inv>")]
 pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> Json<Value> {
 
-   info!(
+    info!(
         LOG,
         "Received inventory with {} {}",
         inv.items.len(),
@@ -335,7 +357,14 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         debug!(LOG, "======================================");
         let block_in_transit = state.block_in_transit.clone();
         let mut block_in_transit = block_in_transit.lock().unwrap();
-        inv.items.clone().into_iter().for_each(|item| {debug!(LOG, "addr_from:{}, block item:{}", add_from, util::encode_hex(item));});
+        inv.items.clone().into_iter().for_each(|item| {
+            debug!(
+                LOG,
+                "addr_from:{}, block item:{}",
+                add_from,
+                util::encode_hex(item)
+            );
+        });
 
         *block_in_transit = inv.items.clone();
         let block_hash = inv.items[0].clone();
@@ -356,14 +385,19 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         // reset blocks in transit
         *block_in_transit = new_in_transit;
 
-         debug!(LOG, "======================================");
+        debug!(LOG, "======================================");
     }
     if inv_type == "tx" {
         let txid = inv.items[0].clone();
         let mem_pool = Arc::clone(&state.mem_pool);
         let mem_pool = mem_pool.lock().unwrap();
         if mem_pool.get(&util::encode_hex(&txid)).is_none() {
-        	info!(LOG, "{} transaction not found in local node, start to download from remote node:{}", util::encode_hex(&txid), &inv.add_from);
+            info!(
+                LOG,
+                "{} transaction not found in local node, start to download from remote node:{}",
+                util::encode_hex(&txid),
+                &inv.add_from
+            );
             send_get_data(
                 state.known_nodes.clone(),
                 add_from,
@@ -382,7 +416,7 @@ pub fn handle_block(
     state: rocket::State<router::BlockState>,
     block_data: Json<Block>,
 ) -> Json<Value> {
-     
+
     info!(LOG, "do block handle");
     let bc = &state.bc.lock().unwrap();
     let local_node = state.local_node.clone();
@@ -394,12 +428,16 @@ pub fn handle_block(
     let block_hash = new_block.hash.clone();
     let res = bc.add_new_block(&new_block);
     if let Err(e) = res {
-        error!(LOG,"add block faild, err:{:?}", e);
+        error!(LOG, "add block faild, err:{:?}", e);
         return bad_data_json!(e);
     }
 
-    info!(LOG, "added block successfully, block source:{}, block hash: {} ",
-           &block_data.add_from, util::encode_hex(&block_hash));
+    info!(
+        LOG,
+        "added block successfully, block source:{}, block hash: {} ",
+        &block_data.add_from,
+        util::encode_hex(&block_hash)
+    );
 
     // TODO why do it in that.
     let block_in_transit = state.block_in_transit.clone();
@@ -417,7 +455,11 @@ pub fn handle_block(
             *bc_in_transit = bc_in_transit[1..].to_vec();
         } else {
             // update utxo
-            info!(LOG, "prepare to update utxos, the new block is {}", util::encode_hex(&block_hash));
+            info!(
+                LOG,
+                "prepare to update utxos, the new block is {}",
+                util::encode_hex(&block_hash)
+            );
             bc.update_utxo(&new_block);
             info!(LOG, "update utxos successfully.");
         }
@@ -445,7 +487,13 @@ fn request_blocks(know_nodes: Arc<Mutex<Vec<String>>>, local_node: &str) {
 }
 
 // path => /get_data
-fn send_get_data(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, local_node:&str, kind: String, id: Vec<u8>) {
+fn send_get_data(
+    known_nodes: Arc<Mutex<Vec<String>>>,
+    addr: &str,
+    local_node: &str,
+    kind: String,
+    id: Vec<u8>,
+) {
     let data = GetData {
         add_from: local_node.to_owned(),
         data_type: kind,

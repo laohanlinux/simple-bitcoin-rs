@@ -41,7 +41,7 @@ impl DBStore {
     pub fn put_with_prefix(&self, key: &[u8], value: &[u8], prefix: &str) {
         info!(LOG, "put prefix {}, key {}", prefix, encode_hex(key));
         if prefix.starts_with("blocks") {
-           info!(LOG, "prefix {}", encode_hex(&key)); 
+            info!(LOG, "prefix {}", encode_hex(&key));
         }
         let db = self.db.get(prefix).unwrap();
         let db = db.lock().unwrap();

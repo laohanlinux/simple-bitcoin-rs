@@ -2,7 +2,7 @@ extern crate rocket;
 extern crate io_context;
 extern crate threadpool;
 
-use blockchain::BlockChain;
+use blockchain::{BLOCK_PREFIX, BlockChain};
 use server;
 use transaction::Transaction;
 use utxo_set;
@@ -19,18 +19,25 @@ pub struct BlockLock {
 }
 
 impl BlockLock {
-    fn new(bc: Arc<BlockChain>, utxos: Arc<utxo_set::UTXOSet>) -> BlockLock{
-        BlockLock{
+    fn new(bc: Arc<BlockChain>, utxos: Arc<utxo_set::UTXOSet>) -> BlockLock {
+        BlockLock {
             bc: bc,
             utxos: utxos,
         }
     }
-    pub fn block_hashes(&self) -> Vec<String>{
+
+    pub fn test_block_hashes(&self) -> Vec<String> {
+        let db = &self.bc.db;
+        let res = db.get_all_with_prefix(*BLOCK_PREFIX);
+        res.into_iter().map(|(k, _)| util::encode_hex(&k)).collect()
+    }
+
+    pub fn block_hashes(&self) -> Vec<String> {
         let hashes = &self.bc.get_block_hashes();
         hashes
-        .into_iter()
-        .map(|item| util::encode_hex(item))
-        .collect()
+            .into_iter()
+            .map(|item| util::encode_hex(item))
+            .collect()
     }
 
     pub fn create_new_utxo_transaction(
@@ -41,21 +48,30 @@ impl BlockLock {
         spend_utxos: Option<HashMap<String, Vec<isize>>>,
     ) -> Result<Transaction, String> {
         let utxos = &self.utxos;
-        let tx = Transaction::new_utxo_transaction(&from_wallet, to.to_owned(), amount, utxos, spend_utxos);
-        tx.map_err(|e| {format!("{:?}", e)})
+        let tx = Transaction::new_utxo_transaction(
+            &from_wallet,
+            to.to_owned(),
+            amount,
+            utxos,
+            spend_utxos,
+        );
+        tx.map_err(|e| format!("{:?}", e))
     }
-    
+
     pub fn add_new_block(&self, new_block: &block::Block) -> Result<(), String> {
         let block_hash = &new_block.hash;
         if self.bc.get_block(&block_hash).is_some() {
-            return Err(format!("{} has exist. ignore", util::encode_hex(&block_hash)));
+            return Err(format!(
+                "{} has exist. ignore",
+                util::encode_hex(&block_hash)
+            ));
         }
 
         // TODO check new block
         self.bc.add_block(new_block)
     }
 
-    pub fn block(&self, hash: &str)-> Option<block::Block>{
+    pub fn block(&self, hash: &str) -> Option<block::Block> {
         self.bc.get_block(&util::decode_hex(hash))
     }
 
@@ -64,7 +80,11 @@ impl BlockLock {
     }
 
     // TODO Opz mining step
-    pub fn mine_new_block(&self, mine_addr: String, mem_pool: &mut HashMap<String, Transaction>) -> Result<String, String> {
+    pub fn mine_new_block(
+        &self,
+        mine_addr: String,
+        mem_pool: &mut HashMap<String, Transaction>,
+    ) -> Result<String, String> {
         let mut txs = vec![];
         let cbtx = Transaction::new_coinbase_tx(mine_addr, "".to_owned());
         txs.push(cbtx);
@@ -78,7 +98,7 @@ impl BlockLock {
         }
 
         let new_block = self.bc.mine_block(&txs);
-        if new_block.is_err(){
+        if new_block.is_err() {
             // delete dirty transaction
             for ts in &txs {
                 mem_pool.remove(&util::encode_hex(&ts.id));
@@ -97,7 +117,7 @@ impl BlockLock {
         self.utxos.update(new_block);
     }
 
-    pub fn block_chain(&self)-> Arc<BlockChain> {
+    pub fn block_chain(&self) -> Arc<BlockChain> {
         Arc::clone(&self.bc)
     }
 }
@@ -120,14 +140,14 @@ impl BlockState {
     ) -> BlockState {
 
         let bc = Arc::new(bc);
-        let utxos = utxo_set::UTXOSet::new(Arc::clone(&bc)); 
+        let utxos = utxo_set::UTXOSet::new(Arc::clone(&bc));
         utxos.reindex();
 
         let mut known_nodes = vec![central_node.clone()];
         if known_nodes[0] != local_node.clone() {
             known_nodes.push(local_node.clone());
         }
-        
+
         let bc_lock = BlockLock::new(Arc::clone(&bc), Arc::new(utxos));
 
         BlockState {
@@ -162,5 +182,6 @@ pub fn init_router(addr: &str, port: u16, block_chain: BlockState) {
         .mount("/", routes![server::handle_valid_pubkey])
         .mount("/", routes![server::handle_transfer])
         .mount("/", routes![server::index])
+        .mount("/", routes![server::handle_test_list_block])
         .launch();
 }

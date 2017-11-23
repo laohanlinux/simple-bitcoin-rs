@@ -257,15 +257,21 @@ pub fn send(
     if !Wallet::validate_address(from.clone()) {
         return Err("ERROR: From's address is not valid".to_owned());
     }
-    if !Wallet::validate_address(to.clone()) {
+    if !Wallet::validate_address(to.to_string()) {
         return Err("ERROR: To's address is not valid".to_owned());
     }
-    let block_chain = Arc::new(BlockChain::new_blockchain(node.clone()));
-    let utxo = UTXOSet::new(block_chain.clone());
+    let block_chain = Arc::new(BlockChain::new_blockchain(node.to_string()));
+    let utxo = UTXOSet::new(Arc::clone(&block_chain));
     let tx = {
         let wallets = Wallets::new_wallets(wallet_store).unwrap();
         let from_wallet = wallets.get_wallet(from.clone()).unwrap();
-        transaction::Transaction::new_utxo_transaction(&from_wallet, to.clone(), amount, &utxo, None)?
+        transaction::Transaction::new_utxo_transaction(
+            from_wallet,
+            to.to_string(),
+            amount,
+            &utxo,
+            None,
+        )?
     };
     info!(LOG, "result: {:?}", tx.id);
     {
@@ -285,15 +291,15 @@ pub fn send(
     }
 
     if mine_now {
-        let cbtx = transaction::Transaction::new_coinbase_tx(from.clone(), "".to_owned());
+        let cbtx = transaction::Transaction::new_coinbase_tx(from.to_string(), "".to_owned());
         let txs = vec![cbtx, tx];
-        let new_block = block_chain.clone().mine_block(&txs).unwrap();
-        utxo.update(&new_block);
+        let new_block = &block_chain.mine_block(&txs).unwrap();
+        utxo.update(new_block);
         info!(LOG, "{:?} send {} to {:?}", from, amount, to);
         return Ok(());
     }
 
-    let known_nodes = Arc::new(Mutex::new(vec![central_node.clone()]));
+    let known_nodes = Arc::new(Mutex::new(vec![central_node.to_string()]));
     server::send_tx(known_nodes, &central_node, &local_addr, &tx);
     info!(LOG, "{:?} send {} to {:?}", from, amount, to);
     Ok(())
@@ -319,44 +325,31 @@ pub fn start_server(
     let bc = Arc::clone(&block_state.bc.lock().unwrap().block_chain());
     let join = thread::spawn(move || { router::init_router(&addr, port, block_state); });
 
-    let node_role = string_to_node_role(&node_role);
+    let node_role = string_to_node_role(node_role);
     let addr_list = vec![local_node.clone()];
 
     let bc = Arc::clone(&bc);
     match node_role {
         NodeRole::MiningNode => {
-            info!(LOG, "start as mining role, mining pub address is {}", mining_addr);
-            server::send_addr(Arc::clone(&known_nodes), &central_node, addr_list);
-            sync_block_tick(
-                &known_nodes,
-                &central_node,
-                "/version",
-                &local_node,
-                bc,
+            info!(
+                LOG,
+                "start as mining role, mining pub address is {}",
+                mining_addr
             );
+            server::send_addr(Arc::clone(&known_nodes), central_node, addr_list);
+            sync_block_tick(&known_nodes, central_node, "/version", &local_node, &bc);
         }
         NodeRole::WalletNode => {
             info!(LOG, "start as wallet role");
-            server::send_addr(Arc::clone(&known_nodes), &central_node, addr_list);
-            sync_block_tick(
-                &known_nodes,
-                &central_node,
-                "/version",
-                &local_node,
-                bc,
-            );
+            server::send_addr(Arc::clone(&known_nodes), central_node, addr_list);
+            sync_block_tick(&known_nodes, central_node, "/version", &local_node, &bc);
         }
         NodeRole::CentralNode => {
             info!(LOG, "start as central role");
-            if local_node.clone() != central_node.clone() {
+            //if local_node.clone() != central_node.clone() {
+            if local_node != central_node {
                 server::send_addr(Arc::clone(&known_nodes), central_node, addr_list);
-                sync_block_tick(
-                    &known_nodes,
-                    central_node,
-                    "/version",
-                    &local_node,
-                    bc,
-                );
+                sync_block_tick(&known_nodes, central_node, "/version", &local_node, &bc);
             }
         }
     }
@@ -383,14 +376,26 @@ fn sync_block_tick(
     addr: &str,
     path: &str,
     local_node: &str,
-    bc: Arc<BlockChain>,
+    bc: &Arc<BlockChain>,
 ) {
     let tick = chan::tick(Duration::from_secs(3));
-    
-    server::send_version(Arc::clone(known_nodes), addr, path, local_node, Arc::clone(&bc));
+
+    server::send_version(
+        Arc::clone(known_nodes),
+        addr,
+        path,
+        local_node,
+        Arc::clone(bc),
+    );
     loop {
         tick.recv().unwrap();
-        server::send_version(Arc::clone(known_nodes), addr, path, local_node, Arc::clone(&bc));
+        server::send_version(
+            Arc::clone(known_nodes),
+            addr,
+            path,
+            local_node,
+            Arc::clone(bc),
+        );
         sync_block_peer(Arc::clone(known_nodes), addr, "/node/list");
     }
 }

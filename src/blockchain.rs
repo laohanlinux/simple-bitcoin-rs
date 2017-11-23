@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 lazy_static! {
     static ref LAST_BLOCK_HASH_KEY:&'static [u8]  = b"last_block".as_ref();
     static ref LAST_BLOCK_HASH_PREFIX:&'static str = "l-";
-    static ref BLOCK_PREFIX:&'static str  = "blocks";
+    pub static ref BLOCK_PREFIX:&'static str  = "blocks";
     static ref GENESIS_COINBASE_DATA:&'static str = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
 }
 
@@ -94,9 +94,7 @@ impl BlockChain {
         let last_hash = &self.db
             .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
             .unwrap();
-        let last_block_data = &self.db
-            .get_with_prefix(&last_hash, *BLOCK_PREFIX)
-            .unwrap();
+        let last_block_data = &self.db.get_with_prefix(&last_hash, *BLOCK_PREFIX).unwrap();
 
         let last_block = Block::deserialize_block(&last_block_data);
 
@@ -109,7 +107,7 @@ impl BlockChain {
         if block.height != last_block.height + 1 {
             return Err("block's height too big".to_string());
         }
-        // check height 
+        // check height
         let block_data = Block::serialize(&block);
         self.db.put_with_prefix(
             &block.hash,
@@ -121,13 +119,13 @@ impl BlockChain {
             *LAST_BLOCK_HASH_KEY,
             &block.hash,
             *LAST_BLOCK_HASH_PREFIX,
-            );
+        );
         let tip = self.tip.clone();
         {
             let mut tip = tip.lock().unwrap();
             *tip = block.hash.clone();
         }
-    
+
         Ok(())
     }
 
@@ -227,10 +225,13 @@ impl BlockChain {
             }
         }
 
-        let last_hash = self.db
-            .clone()
-            .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
-            .unwrap();
+        //let last_hash = self.db
+        //   .clone()
+        //   .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
+        //   .unwrap();
+        let last_hash = {
+            self.tip.lock().unwrap().to_vec()
+        };
         let last_block_data = self.db
             .clone()
             .get_with_prefix(&last_hash, *BLOCK_PREFIX)
@@ -271,13 +272,20 @@ impl BlockChain {
         IterBlockchain::new(db, current_block)
     }
 
-    pub fn sign_transaction(&self, tx: &mut Transaction, secret_key: &SecretKey) -> Result<(), String> {
+    pub fn sign_transaction(
+        &self,
+        tx: &mut Transaction,
+        secret_key: &SecretKey,
+    ) -> Result<(), String> {
         let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
         for vin in &tx.vin {
             if let Some(prev_tx) = self.find_transaction(&vin.txid) {
                 prev_txs.insert(util::encode_hex(&prev_tx.id), prev_tx);
-            }else {
-                return Err(format!("not found the transation, txid:{}", util::encode_hex(&vin.txid)));
+            } else {
+                return Err(format!(
+                    "not found the transation, txid:{}",
+                    util::encode_hex(&vin.txid)
+                ));
             }
         }
         tx.sign(&secret_key, &prev_txs);
@@ -294,8 +302,8 @@ impl BlockChain {
         for vin in &tx.vin {
             let prev_tx = {
                 let res_pre_tx = self.find_transaction(&vin.txid);
-                if res_pre_tx.is_none(){
-                    return false;         
+                if res_pre_tx.is_none() {
+                    return false;
                 }
                 res_pre_tx.unwrap()
             };
