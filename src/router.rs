@@ -75,8 +75,37 @@ impl BlockLock {
         self.bc.get_block(&util::decode_hex(hash))
     }
 
+    pub fn download_blocks(&self) -> Vec<block::Block> {
+        self.bc.all_blocks()
+    }
+
     pub fn best_height(&self) -> isize {
         self.bc.get_best_height()
+    }
+
+    pub fn balance(&self, addr: &str) -> HashMap<String, String> {
+        let mut balance = 0;
+        let pub_key_hash = util::decode_base58(addr.to_owned());
+        let pub_key_hash = &pub_key_hash[1..(pub_key_hash.len() - 4)];
+        let utxos = self.utxos.find_utxo(pub_key_hash);
+        for out in utxos {
+            balance += out.value;
+        }
+        let mut res: HashMap<String, String> = HashMap::new();
+        res.entry("addr".to_owned()).or_insert(addr.to_string());
+        res.entry("balance".to_owned()).or_insert(
+            balance.to_string(),
+        );
+        res
+    }
+
+    pub fn unspend_utxo(&self) -> Vec<String> {
+        let db = self.bc.db.clone();
+        let utxos = db.get_all_with_prefix("utxo-");
+        utxos
+            .into_iter()
+            .map(|(k, _)| util::encode_hex(&k))
+            .collect()
     }
 
     // TODO Opz mining step
@@ -182,6 +211,9 @@ pub fn init_router(addr: &str, port: u16, block_chain: BlockState) {
         .mount("/", routes![server::handle_valid_pubkey])
         .mount("/", routes![server::handle_transfer])
         .mount("/", routes![server::index])
+        .mount("/", routes![server::handle_download_blocks])
+        .mount("/", routes![server::handle_balance])
+        .mount("/", routes![server::handle_unspend_utxos])
         .mount("/", routes![server::handle_test_list_block])
         .launch();
 }

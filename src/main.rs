@@ -8,8 +8,6 @@ use clap::{Arg, App, SubCommand, ArgMatches};
 use simple_bitcoin_rs::log::*;
 use simple_bitcoin_rs::cli;
 
-use std::thread;
-
 const STORE: &str = "/tmp/block_chain";
 const CENTRAL_NODE: &str = "127.0.0.1:3000";
 
@@ -321,9 +319,9 @@ fn run_send(matches: &ArgMatches) {
         to.to_owned(),
         amount,
         wallet_store.to_owned(),
-        store.to_owned(),
-        central_node.to_owned(),
-        local_node.to_owned(),
+        store.to_string(),
+        central_node,
+        local_node,
         mine,
     ) {
         Ok(_) => {}

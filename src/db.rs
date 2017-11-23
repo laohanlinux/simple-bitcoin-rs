@@ -25,7 +25,7 @@ impl DBStore {
     }
 
     pub fn get_with_prefix(&self, key: &[u8], prefix: &str) -> Option<Vec<u8>> {
-        info!(LOG, "get prefix {}, key {}", prefix, encode_hex(key));
+        //info!(LOG, "get prefix {}, key {}", prefix, encode_hex(key));
         let db = self.db.get(prefix).unwrap();
         let db = db.lock().unwrap();
         match db.get(key) {
@@ -39,7 +39,7 @@ impl DBStore {
     }
 
     pub fn put_with_prefix(&self, key: &[u8], value: &[u8], prefix: &str) {
-        info!(LOG, "put prefix {}, key {}", prefix, encode_hex(key));
+        //info!(LOG, "put prefix {}, key {}", prefix, encode_hex(key));
         if prefix.starts_with("blocks") {
             info!(LOG, "prefix {}", encode_hex(&key));
         }
@@ -50,7 +50,7 @@ impl DBStore {
 
     // return value not included prefix
     pub fn get_all_with_prefix(&self, prefix: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
-        info!(LOG, "getall prefix {}", prefix);
+        //info!(LOG, "getall prefix {}", prefix);
         let db = self.db.get(prefix).unwrap();
         let db = db.lock().unwrap();
         let mut iter = db.raw_iterator();
@@ -64,7 +64,7 @@ impl DBStore {
     }
 
     pub fn delete(&self, key: &[u8], prefix: &str) {
-        info!(LOG, "delete prefix {}, key {}", prefix, encode_hex(key));
+        //info!(LOG, "delete prefix {}, key {}", prefix, encode_hex(key));
         let db = self.db.get(prefix).unwrap();
         let db = db.lock().unwrap();
         db.delete(key).unwrap()

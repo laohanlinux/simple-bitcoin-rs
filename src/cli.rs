@@ -94,6 +94,12 @@ pub fn list_address(node: String) -> Result<Vec<String>, String> {
     Ok(wallets.list_address())
 }
 
+pub fn download_chain(node: String) -> Result<(), String> {
+    let block_chain = BlockChain::new_blockchain(node);
+    let bcs = block_chain.all_blocks();
+    Ok(())
+}
+
 pub fn print_chain(node: String) -> Result<(), String> {
     let block_chain = BlockChain::new_blockchain(node);
     let chain_iter = block_chain.iter();
@@ -250,8 +256,8 @@ pub fn send(
     amount: isize,
     wallet_store: String,
     node: String,
-    central_node: String,
-    local_addr: String,
+    central_node: &str,
+    local_addr: &str,
     mine_now: bool,
 ) -> Result<(), String> {
     if !Wallet::validate_address(from.clone()) {
@@ -346,7 +352,6 @@ pub fn start_server(
         }
         NodeRole::CentralNode => {
             info!(LOG, "start as central role");
-            //if local_node.clone() != central_node.clone() {
             if local_node != central_node {
                 server::send_addr(Arc::clone(&known_nodes), central_node, addr_list);
                 sync_block_tick(&known_nodes, central_node, "/version", &local_node, &bc);

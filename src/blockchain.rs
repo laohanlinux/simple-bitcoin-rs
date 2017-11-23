@@ -107,6 +107,14 @@ impl BlockChain {
         if block.height != last_block.height + 1 {
             return Err("block's height too big".to_string());
         }
+        if !util::compare_slice_u8(last_hash, &block.prev_block_hash) {
+            return Err(format!(
+                "{} not equal {}",
+                util::encode_hex(last_hash),
+                util::encode_hex(&block.prev_block_hash)
+            ));
+        }
+
         // check height
         let block_data = Block::serialize(&block);
         self.db.put_with_prefix(
@@ -208,6 +216,14 @@ impl BlockChain {
         block_data.map(|v| Block::deserialize_block(&v))
     }
 
+    pub fn all_blocks(&self) -> Vec<Block> {
+        let blocks_data = &self.db.get_all_with_prefix(*BLOCK_PREFIX);
+        blocks_data
+            .into_iter()
+            .map(|&(_, ref data)| Block::deserialize_block(data))
+            .collect()
+    }
+
     pub fn get_block_hashes(&self) -> Vec<Vec<u8>> {
         let block_iter = self.iter();
         let mut blocks = vec![];
@@ -219,16 +235,11 @@ impl BlockChain {
 
     pub fn mine_block(&self, transactions: &Vec<Transaction>) -> Result<Block, String> {
         for tx in transactions {
-            println!("need to check transaction id is {:?}", &tx.id);
             if !self.verify_transaction(&tx) {
                 panic!("ERROR: Invalid transaction")
             }
         }
 
-        //let last_hash = self.db
-        //   .clone()
-        //   .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
-        //   .unwrap();
         let last_hash = {
             self.tip.lock().unwrap().to_vec()
         };
@@ -241,22 +252,6 @@ impl BlockChain {
         let new_block = Block::new(transactions.clone(), last_hash, last_height + 1);
         let new_block_data = Block::serialize(&new_block);
         self.add_block(&new_block).map(|_| new_block)
-
-        /*self.db.clone().put_with_prefix(
-            &new_block.hash,
-            &new_block_data,
-            *BLOCK_PREFIX,
-        );
-        self.db.clone().put_with_prefix(
-            *LAST_BLOCK_HASH_KEY,
-            &new_block.hash,
-            *LAST_BLOCK_HASH_PREFIX,
-        );
-        let tip = self.tip.clone();
-        {
-            let mut tip = tip.lock().unwrap();
-            *tip = new_block.hash.clone();
-        }*/
     }
 
     pub fn iter(&self) -> IterBlockchain {
