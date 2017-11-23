@@ -82,7 +82,7 @@ impl BlockChain {
     }
 
     // TODO check block all transaction valid
-    pub fn add_block(&self, block: Block) -> Result<(), String> {
+    pub fn add_block(&self, block: &Block) -> Result<(), String> {
         if self.db
             .clone()
             .get_with_prefix(&block.hash, *BLOCK_PREFIX)
@@ -239,7 +239,7 @@ impl BlockChain {
         let last_height = last_block.height;
         let new_block = Block::new(transactions.clone(), last_hash, last_height + 1);
         let new_block_data = Block::serialize(&new_block);
-        self.add_block(new_block.clone()).map(|_| new_block)
+        self.add_block(&new_block).map(|_| new_block)
 
         /*self.db.clone().put_with_prefix(
             &new_block.hash,

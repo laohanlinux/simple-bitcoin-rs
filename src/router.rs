@@ -42,11 +42,11 @@ impl BlockLock {
     ) -> Result<Transaction, String> {
         let utxos = &self.utxos;
         let tx = Transaction::new_utxo_transaction(&from_wallet, to.to_owned(), amount, utxos, spend_utxos);
-        tx.map_err(|e| {format!("{:?}", tx.err())})
+        tx.map_err(|e| {format!("{:?}", e)})
     }
     
-    pub fn add_new_block(&self, new_block: block::Block) -> Result<(), String> {
-        let block_hash = new_block.hash;
+    pub fn add_new_block(&self, new_block: &block::Block) -> Result<(), String> {
+        let block_hash = &new_block.hash;
         if self.bc.get_block(&block_hash).is_some() {
             return Err(format!("{} has exist. ignore", util::encode_hex(&block_hash)));
         }
@@ -64,11 +64,11 @@ impl BlockLock {
     }
 
     // TODO Opz mining step
-    pub fn mine_new_block(&self, mine_addr: String, mem_pool: &HashMap<String, Transaction>) -> Result<String, String> {
+    pub fn mine_new_block(&self, mine_addr: String, mem_pool: &mut HashMap<String, Transaction>) -> Result<String, String> {
         let mut txs = vec![];
         let cbtx = Transaction::new_coinbase_tx(mine_addr, "".to_owned());
         txs.push(cbtx);
-        for (txid, ts) in mem_pool {
+        for ts in mem_pool.values() {
             if self.bc.verify_transaction(ts) {
                 txs.push(ts.clone());
             }

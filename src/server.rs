@@ -240,11 +240,11 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
         loop {
             if mem_pool.len() >= MINING_SIZE {
             	debug!(LOG, "i am mining node:{} start to mining", &mining_addr);
-                let mem_pool_copy = mem_pool.clone();
-                let res = bc.mine_new_block(state.mining_address.to_string(), &mem_pool_copy);
-                if res.is_err(){
-                    error!(LOG, "mine block fail, err:{}", res.err().unwrap());
-                    return bad_data_json!(res.err().unwrap());
+                let mut mem_pool_copy = mem_pool.clone();
+                let res = bc.mine_new_block(state.mining_address.to_string(), &mut mem_pool_copy);
+                if let Err(ref e) = res {
+                    error!(LOG, "mine block fail, err:{}", e);
+                    return bad_data_json!(e);
                 }
                 let new_block_hash = res.unwrap();
                 info!(
@@ -263,7 +263,7 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                         &node,
                         &local_node,
                         "block",
-                        vec![util::decode_hex(new_block_hash)],
+                        vec![util::decode_hex(&new_block_hash)],
                     )
                 });
             }
@@ -284,7 +284,7 @@ pub fn handle_get_blocks(
 ) -> Json<Value> {
 
     let bc = &state.bc.lock().unwrap();
-    let hashes: Vec<String> = bc.block_hashes();
+    let ref hashes: Vec<String> = bc.block_hashes();
     let hashes_vec: Vec<Vec<u8>> = hashes.into_iter().map(|item| util::decode_hex(&item)).collect();
     send_inv(
         state.known_nodes.clone(),
@@ -392,11 +392,12 @@ pub fn handle_block(
     }
     let new_block = new_block.unwrap();
     let block_hash = new_block.hash.clone();
-    let res = bc.add_new_block(new_block); 
-    if res.is_err(){
-        error!(LOG,"add block faild, err:{:?}", res.err());
-        return bad_data_json!(res.err());
+    let res = bc.add_new_block(&new_block);
+    if let Err(e) = res {
+        error!(LOG,"add block faild, err:{:?}", e);
+        return bad_data_json!(e);
     }
+
     info!(LOG, "added block successfully, block source:{}, block hash: {} ",
            &block_data.add_from, util::encode_hex(&block_hash));
 

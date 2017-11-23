@@ -387,10 +387,10 @@ fn sync_block_tick(
 ) {
     let tick = chan::tick(Duration::from_secs(3));
     
-    server::send_version(Arc::clone(known_nodes), addr, path, local_node, bc);
+    server::send_version(Arc::clone(known_nodes), addr, path, local_node, Arc::clone(&bc));
     loop {
         tick.recv().unwrap();
-        server::send_version(Arc::clone(known_nodes), addr, path, local_node, bc);
+        server::send_version(Arc::clone(known_nodes), addr, path, local_node, Arc::clone(&bc));
         sync_block_peer(Arc::clone(known_nodes), addr, "/node/list");
     }
 }
