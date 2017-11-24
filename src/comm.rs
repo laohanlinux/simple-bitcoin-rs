@@ -11,7 +11,7 @@ macro_rules! ok_json {
 }
 
 macro_rules! bad_json {
-    () => (Json(json!({"status": "bad"})))
+    () => (Json(json!({"status": "fail"})))
 }
 
 macro_rules! bad_data_json {

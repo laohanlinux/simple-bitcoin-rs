@@ -112,7 +112,7 @@ pub fn handle_transfer(
     let secret_key = util::decode_hex(&transfer.secret_key);
     let from_wallet = wallet::Wallet::recover_wallet(&secret_key);
     if from_wallet.is_err() {
-        return bad_data_json!(from_wallet.err());
+        return bad_data_json!(from_wallet.err().unwrap());
     }
     let from_wallet = from_wallet.unwrap();
     if from_wallet.get_address() != transfer.from {
@@ -143,7 +143,7 @@ pub fn handle_transfer(
     let bc = &state.bc.lock().unwrap();
     let tx = bc.create_new_utxo_transaction(&from_wallet, to, amount, Some(spend_utxos));
     if tx.is_err() {
-        return bad_data_json!(tx.err());
+        return bad_data_json!(tx.err().unwrap());
     }
     let tx = tx.unwrap();
     let local_addr = state.local_node.clone();

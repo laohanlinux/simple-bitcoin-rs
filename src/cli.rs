@@ -306,7 +306,7 @@ pub fn send(
     }
 
     let known_nodes = Arc::new(Mutex::new(vec![central_node.to_string()]));
-    server::send_tx(known_nodes, &central_node, &local_addr, &tx);
+    server::send_tx(known_nodes, central_node, local_addr, &tx);
     info!(LOG, "{:?} send {} to {:?}", from, amount, to);
     Ok(())
 }
