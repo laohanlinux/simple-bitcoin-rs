@@ -9,6 +9,7 @@ use utxo_set;
 use util;
 use wallet::Wallet;
 use block;
+use log::*;
 
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -30,6 +31,24 @@ impl BlockLock {
         let db = &self.bc.db;
         let res = db.get_all_with_prefix(*BLOCK_PREFIX);
         res.into_iter().map(|(k, _)| util::encode_hex(&k)).collect()
+    }
+
+    pub fn test_last_block(&self) -> (isize, String, String) {
+        (self.bc.get_best_height(), util::encode_hex(self.bc.get_tip()), self.bc.last_block_hash())
+    }
+
+    pub fn tx(&self, txid: &str) -> Option<(String, isize, Transaction)> {
+        let best_height = self.best_height();
+        let block_iter = self.bc.iter();
+        for block in block_iter {
+            for ts in &block.transactions {
+                if util::encode_hex(&ts.id) == txid {
+                    let confirm = best_height - block.height;
+                    return Some((util::encode_hex(block.hash), confirm, ts.clone()));
+                }
+            }
+        }
+        None
     }
 
     pub fn block_hashes(&self) -> Vec<String> {
@@ -58,21 +77,35 @@ impl BlockLock {
         tx.map_err(|e| format!("{:?}", e))
     }
 
-    pub fn add_new_block(&self, new_block: &block::Block) -> Result<(), String> {
+    pub fn add_new_block(&self, new_block: &block::Block,
+                         from_central_node: bool) -> Result<bool, String> {
         let block_hash = &new_block.hash;
         if self.bc.get_block(&block_hash).is_some() {
-            return Err(format!(
-                "{} has exist. ignore",
-                util::encode_hex(&block_hash)
-            ));
+            //debug!(LOG, "{} has exist, ignore", util::encode_hex(&block_hash));
+            return Ok(true);
+        }
+
+        if from_central_node {
+            warn!(LOG, "may be delete fork block, hash: {}, height: {}", util::encode_hex(block_hash), new_block.height);
+            // clear confect blocks
+            self.bc.delete_blocks(&new_block.hash, new_block.height);
         }
 
         // TODO check new block
-        self.bc.add_block(new_block)
+        self.bc.add_block(new_block).map(|_| false)
     }
 
     pub fn block(&self, hash: &str) -> Option<block::Block> {
         self.bc.get_block(&util::decode_hex(hash))
+    }
+    pub fn block_with_height(&self, height: isize) -> Option<block::Block> {
+        let block_iter = self.bc.iter();
+        for block in block_iter {
+            if block.height == height {
+                return Some(block);
+            }
+        }
+        None
     }
 
     pub fn download_blocks(&self) -> Vec<block::Block> {
@@ -197,6 +230,7 @@ pub fn init_router(addr: &str, port: u16, block_chain: BlockState) {
     conf.set_port(port);
     rocket::Rocket::custom(conf, true)
         .manage(block_chain)
+        .mount("/", routes![server::index])
         .mount("/", routes![server::handle_node_list])
         .mount("/", routes![server::handle_mempool_list])
         .mount("/", routes![server::handle_list_block])
@@ -210,10 +244,13 @@ pub fn init_router(addr: &str, port: u16, block_chain: BlockState) {
         .mount("/", routes![server::handle_generate_secrectkey])
         .mount("/", routes![server::handle_valid_pubkey])
         .mount("/", routes![server::handle_transfer])
-        .mount("/", routes![server::index])
-        .mount("/", routes![server::handle_download_blocks])
         .mount("/", routes![server::handle_balance])
         .mount("/", routes![server::handle_unspend_utxos])
+        .mount("/", routes![server::handle_info_block])
+        .mount("/", routes![server::handle_tx_info])
         .mount("/", routes![server::handle_test_list_block])
+        .mount("/", routes![server::handle_test_last_block])
+        .mount("/", routes![server::handle_test_mempool_blocks])
+        .mount("/", routes![server::handle_test_download_blocks])
         .launch();
 }

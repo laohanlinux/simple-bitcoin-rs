@@ -38,6 +38,12 @@ pub struct GetData {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct HeightBlock{
+    pub add_from: String,
+    pub height: isize,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Inv {
     pub add_from: String,
     pub inv_type: String,

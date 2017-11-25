@@ -6,6 +6,7 @@
 
 echo "start all node"
 
+pkill bitcoin
 ps | grep bitcoin | awk '{print $1}' | while read line ; do kill $line ; done
 ps -ef | grep bitcoin | awk '{print $1}' | while read line ; do kill $line ; done
 

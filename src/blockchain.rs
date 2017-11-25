@@ -99,13 +99,13 @@ impl BlockChain {
         let last_block = Block::deserialize_block(&last_block_data);
 
         if block.height < last_block.height {
-            return Err("block's height too small".to_string());
+            return Err(format!("block's height:'{} < {}' too small", block.height, last_block.height));
         }
         if block.height == last_block.height {
             return Err("generate hard fork".to_string());
         }
         if block.height != last_block.height + 1 {
-            return Err("block's height too big".to_string());
+            return Err(format!("block's height:'{} != {}' too big", block.height, last_block.height));
         }
         if !util::compare_slice_u8(last_hash, &block.prev_block_hash) {
             return Err(format!(
@@ -135,6 +135,33 @@ impl BlockChain {
         }
 
         Ok(())
+    }
+
+    pub fn delete_blocks(&self, block_hash: &[u8], height: isize) {
+        let block_iter = self.iter();
+        let mut delete_hashes:Vec<Vec<u8>> = vec![];
+        for block in block_iter {
+            if block.height > height {
+                delete_hashes.push(block.hash.clone());
+            }
+            if block.height == height {
+                if util::compare_slice_u8(block_hash, &block.hash){
+                    delete_hashes = vec![];
+                }else {
+                    let mut self_tip = self.tip.lock().unwrap();
+                    *self_tip = block.prev_block_hash.clone();
+
+                    &self.db.put_with_prefix(
+                        *LAST_BLOCK_HASH_KEY,
+                        &block.hash,
+                        *LAST_BLOCK_HASH_PREFIX,
+                    );
+                }
+                break;
+            }
+        }
+
+        delete_hashes.into_iter().for_each(|hash| self.db.delete(&hash, *BLOCK_PREFIX));
     }
 
     // TODO optizme it
@@ -209,6 +236,10 @@ impl BlockChain {
             .unwrap();
         let last_block = Block::deserialize_block(&last_block_data);
         last_block.height
+    }
+
+    pub fn get_tip(&self) -> Vec<u8> {
+        self.tip.lock().unwrap().clone()
     }
 
     pub fn get_block(&self, block_hash: &[u8]) -> Option<Block> {

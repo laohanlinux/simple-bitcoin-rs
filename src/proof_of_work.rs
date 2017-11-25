@@ -18,7 +18,7 @@ lazy_static!{
 }
 
 //const TARGETBITS: usize = 16;
-const TARGETBITS: usize = 4;
+const TARGETBITS: usize = 8;
 
 pub struct ProofOfWork<'a> {
     pub block: &'a Block,

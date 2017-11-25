@@ -34,12 +34,12 @@ pub fn handle_node_list(state: rocket::State<router::BlockState>) -> Json<Value>
 
 #[get("/mempool/list")]
 pub fn handle_mempool_list(state: rocket::State<router::BlockState>) -> Json<Value> {
-    let mem_pool = state.mem_pool.lock().unwrap().clone();
-    ok_data_json!(&mem_pool)
+    let mem_pool = &state.mem_pool.lock().unwrap().clone();
+    ok_data_json!(mem_pool)
 }
 
 #[get("/test/download")]
-pub fn handle_download_blocks(state: rocket::State<router::BlockState>) -> Json<Value> {
+pub fn handle_test_download_blocks(state: rocket::State<router::BlockState>) -> Json<Value> {
     let bc = &state.bc.lock().unwrap();
     let all_blocks = bc.download_blocks();
 
@@ -53,10 +53,36 @@ pub fn handle_test_list_block(state: rocket::State<router::BlockState>) -> Json<
     ok_data_json!(hashes)
 }
 
+#[get("/test/last/block")]
+pub fn handle_test_last_block(state: rocket::State<router::BlockState>) -> Json<Value> {
+    let bc = &state.bc.lock().unwrap();
+    ok_data_json!(bc.test_last_block())
+}
+
+#[get("/test/mempool/blocks")]
+pub fn handle_test_mempool_blocks(state: rocket::State<router::BlockState>) -> Json<Value> {
+    let mem_pool = state.mem_pool.lock().unwrap();
+    let data = mem_pool.clone();
+    let output:Vec<String> = data.into_iter().map(|(k, _)| k).collect();
+    ok_data_json!(output)
+}
+
 #[get("/wallet/balance/<addr>")]
 pub fn handle_balance(state: rocket::State<router::BlockState>, addr: String) -> Json<Value> {
     let bc = &state.bc.lock().unwrap();
     ok_data_json!(bc.balance(&addr))
+}
+
+#[get("/wallet/info/tx/<id>")]
+pub fn handle_tx_info(state: rocket::State<router::BlockState>, id: String) -> Json<Value> {
+    let bc = &state.bc.lock().unwrap();
+    bc.tx(&id).map_or(bad_data_json!(format!("{} not found", id)), |ts| ok_data_json!(ts))
+}
+
+#[get("/wallet/info/block/<id>")]
+pub fn handle_info_block(state: rocket::State<router::BlockState>, id: String) -> Json<Value> {
+    let bc = &state.bc.lock().unwrap();
+    bc.block(&id).map_or(bad_data_json!(format!("{} not found", id)), |block| {ok_data_json!(block)})
 }
 
 #[get("/wallet/utxos/unspend")]
@@ -175,6 +201,23 @@ pub fn handle_addr(state: rocket::State<router::BlockState>, addrs: Json<Addr>) 
     }
     request_blocks(state.known_nodes.clone(), &local_node);
     ok_json!()
+}
+
+#[post("/get_height_block", format = "application/json", data = "<height_data>")]
+pub fn handle_get_heigt_block_data(state: rocket::State<router::BlockState>, height_data: Json<HeightBlock>) -> Json<Value>{
+    let bc = &state.bc.lock().unwrap();
+    let local_node = state.local_node.clone();
+    let res = bc.block_with_height(height_data.height);
+    if let Some(block) = res {
+        send_block(
+            state.known_nodes.clone(),
+            &height_data.add_from,
+            &local_node,
+            block,
+        );
+        return ok_json!();
+    }
+    bad_data_json!(format!("not foud the height:{} block", height_data.height))
 }
 
 // sync data
@@ -365,12 +408,19 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         inv.items.len(),
         inv.inv_type
     );
+    let bc = &state.bc.lock().unwrap();
+
     let inv_type = &inv.inv_type;
     let add_from = &inv.add_from;
     let local_node = state.local_node.clone();
     if inv_type == "block" {
         let block_in_transit = state.block_in_transit.clone();
         let mut block_in_transit = block_in_transit.lock().unwrap();
+        let last_height = bc.best_height() as usize;
+        if last_height > (inv.items.len() - 1){
+            return ok_json!();
+        }
+
         inv.items.clone().into_iter().for_each(|item| {
             debug!(
                 LOG,
@@ -380,8 +430,19 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
             );
         });
 
-        *block_in_transit = inv.items.clone();
-        let block_hash = inv.items[0].clone();
+        let step = inv.items.len() - last_height - 1;
+        if step <= 0 {
+            return ok_json!();
+        }
+        let mut items = inv.items[0..step].to_vec();
+        // reverse it
+        items.reverse();
+        let block_hash = items[0].clone();
+        *block_in_transit = items;
+        block_in_transit.clone().into_iter().for_each(|item| {
+            println!("addr_from:{}, block item:{}", add_from, util::encode_hex(item));
+        });
+
         send_get_data(
             state.known_nodes.clone(),
             add_from,
@@ -432,16 +493,22 @@ pub fn handle_block(
     info!(LOG, "do block handle");
     let bc = &state.bc.lock().unwrap();
     let local_node = state.local_node.clone();
+    let central_node = {
+        state.known_nodes.lock().unwrap()[0].to_string()
+    };
     let new_block = block::Block::try_deserialize_block(&block_data.block);
     if new_block.is_err() {
         return bad_data_json!(new_block.err().unwrap());
     }
     let new_block = new_block.unwrap();
     let block_hash = new_block.hash.clone();
-    let res = bc.add_new_block(&new_block);
+    let res = bc.add_new_block(&new_block, block_data.add_from == central_node);
     if let Err(e) = res {
         error!(LOG, "add block faild, err:{:?}", e);
         return bad_data_json!(e);
+    }else if let Ok(true) = res {
+        info!(LOG, "{} has exists, ignore it", util::encode_hex(block_hash));
+        return ok_json!();
     }
 
     info!(
@@ -450,6 +517,14 @@ pub fn handle_block(
         &block_data.add_from,
         util::encode_hex(&block_hash)
     );
+
+    info!(
+        LOG,
+        "prepare to update utxos, the new block is {}",
+        util::encode_hex(&block_hash)
+    );
+    bc.update_utxo(&new_block);
+    info!(LOG, "update utxos successfully.");
 
     // TODO why do it in that.
     let block_in_transit = state.block_in_transit.clone();
@@ -465,15 +540,6 @@ pub fn handle_block(
                 block_hash,
             );
             *bc_in_transit = bc_in_transit[1..].to_vec();
-        } else {
-            // update utxo
-            info!(
-                LOG,
-                "prepare to update utxos, the new block is {}",
-                util::encode_hex(&block_hash)
-            );
-            bc.update_utxo(&new_block);
-            info!(LOG, "update utxos successfully.");
         }
     }
 
