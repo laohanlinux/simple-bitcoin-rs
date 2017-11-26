@@ -9,7 +9,9 @@ use self::rocket_contrib::{Json, Value};
 use self::rocket::response::NamedFile;
 
 use std::io;
+use std::thread;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::Ordering;
 use std::collections::HashMap;
 
 use transaction::Transaction;
@@ -63,7 +65,7 @@ pub fn handle_test_last_block(state: rocket::State<router::BlockState>) -> Json<
 pub fn handle_test_mempool_blocks(state: rocket::State<router::BlockState>) -> Json<Value> {
     let mem_pool = state.mem_pool.lock().unwrap();
     let data = mem_pool.clone();
-    let output:Vec<String> = data.into_iter().map(|(k, _)| k).collect();
+    let output: Vec<String> = data.into_iter().map(|(k, _)| k).collect();
     ok_data_json!(output)
 }
 
@@ -76,13 +78,19 @@ pub fn handle_balance(state: rocket::State<router::BlockState>, addr: String) ->
 #[get("/wallet/info/tx/<id>")]
 pub fn handle_tx_info(state: rocket::State<router::BlockState>, id: String) -> Json<Value> {
     let bc = &state.bc.lock().unwrap();
-    bc.tx(&id).map_or(bad_data_json!(format!("{} not found", id)), |ts| ok_data_json!(ts))
+    bc.tx(&id).map_or(
+        bad_data_json!(format!("{} not found", id)),
+        |ts| ok_data_json!(ts),
+    )
 }
 
 #[get("/wallet/info/block/<id>")]
 pub fn handle_info_block(state: rocket::State<router::BlockState>, id: String) -> Json<Value> {
     let bc = &state.bc.lock().unwrap();
-    bc.block(&id).map_or(bad_data_json!(format!("{} not found", id)), |block| {ok_data_json!(block)})
+    bc.block(&id).map_or(
+        bad_data_json!(format!("{} not found", id)),
+        |block| ok_data_json!(block),
+    )
 }
 
 #[get("/wallet/utxos/unspend")]
@@ -146,6 +154,7 @@ pub fn handle_transfer(
     }
 
     let (to, amount) = (&transfer.to, transfer.amount as isize);
+    let bc = &state.bc.lock().unwrap();
     let mem_pool = state.mem_pool.clone();
     let mem_pool = mem_pool.lock().unwrap();
     let spend_utxos = {
@@ -166,7 +175,7 @@ pub fn handle_transfer(
         }
         spend_utxos
     };
-    let bc = &state.bc.lock().unwrap();
+
     let tx = bc.create_new_utxo_transaction(&from_wallet, to, amount, Some(spend_utxos));
     if tx.is_err() {
         return bad_data_json!(tx.err().unwrap());
@@ -204,7 +213,10 @@ pub fn handle_addr(state: rocket::State<router::BlockState>, addrs: Json<Addr>) 
 }
 
 #[post("/get_height_block", format = "application/json", data = "<height_data>")]
-pub fn handle_get_heigt_block_data(state: rocket::State<router::BlockState>, height_data: Json<HeightBlock>) -> Json<Value>{
+pub fn handle_get_heigt_block_data(
+    state: rocket::State<router::BlockState>,
+    height_data: Json<HeightBlock>,
+) -> Json<Value> {
     let bc = &state.bc.lock().unwrap();
     let local_node = state.local_node.clone();
     let res = bc.block_with_height(height_data.height);
@@ -286,69 +298,108 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
 
     debug!(LOG, "get a transaction, txid: {}", &txid);
     // add new transaction into mempool
-    let mut mem_pool = state.mem_pool.lock().unwrap();
-    mem_pool.entry(txid).or_insert(ts.clone());
+    {
+        let mut mem_pool = state.mem_pool.lock().unwrap();
+        mem_pool.entry(txid).or_insert(ts.clone());
+    }
+    let run_mining = state.run_mining.load(Ordering::SeqCst);
+    if run_mining && state.mining_address.clone().len() > 0 {
+        info!(LOG, "node is mining...");
+        return ok_json!();
+    }
+
     // local node addr
     let local_node = state.local_node.clone();
-    let bc = &state.bc.lock().unwrap();
-    let known_nodes = state.known_nodes.clone();
-    let ref known_nodes = {
-        let know_nodes = known_nodes.lock().unwrap();
-        know_nodes.clone()
+    let known_nodes = {
+        let know_nodes = state.known_nodes.lock().unwrap();
+        &*know_nodes.clone()
     };
     // the local node is central node, it just do forward the new transactions to other nodes in the network.
     if local_node.to_lowercase() == known_nodes[0].to_lowercase() {
         let txid = &ts.id;
-        for node in known_nodes {
+        known_nodes.clone().into_iter().for_each(|node| {
             info!(LOG, "forward transaction to {}", &node);
             send_inv(
                 state.known_nodes.clone(),
-                node,
+                &node,
                 &local_node,
                 "tx",
                 vec![txid.to_vec()],
             );
-        }
+        });
     } else if state.mining_address.clone().len() > 0 {
+        //set mining state
+        state.run_mining.store(true, Ordering::SeqCst);
+        let run_mining = state.run_mining.clone();
         // the local node is a mining node, start to mining!
         let mining_addr = state.mining_address.clone();
-
-        info!(LOG, "start to mining...");
-        loop {
-            if mem_pool.len() >= MINING_SIZE {
-                debug!(LOG, "i am mining node:{} start to mining", &mining_addr);
-                let mut mem_pool_copy = mem_pool.clone();
-                let res = bc.mine_new_block(state.mining_address.to_string(), &mut mem_pool_copy);
-                if let Err(ref e) = res {
-                    error!(LOG, "mine block fail, err:{}", e);
-                    return bad_data_json!(e);
+        let bc = state.bc.clone();
+        let mem_pool = state.mem_pool.clone();
+        let local_node = state.local_node.clone();
+        let known_nodes = state.known_nodes.clone();
+        thread::spawn(move || {
+            info!(LOG, "{} start to mining...", &local_node);
+            loop {
+                let mem_pool_clone = mem_pool.clone();
+                let mem_pool_copy = {
+                    mem_pool_clone.lock().unwrap().clone()
+                };
+                if mem_pool_copy.len() < MINING_SIZE {
+                    break;
                 }
-                let new_block_hash = res.unwrap();
-                info!(
-                    LOG,
-                    "🔨 🔨 🔨 mining a new block, hash is {}",
-                    &new_block_hash
-                );
-                *mem_pool = mem_pool_copy;
+                let res = bc.lock()
+                    .unwrap()
+                    .mine_new_block2(mining_addr.to_string(), &mem_pool_copy)
+                    .or_else(|e| Err(e));
+                let res = res.and_then(|recv| recv.recv().map_err(|e| format!("{:?}", e)))
+                    .and_then(|new_block| {
+                        // insert mininged block
+                        let bc = bc.lock().unwrap();
+                        bc.add_new_block(&new_block, false)
+                            .and_then(|exists| {
+                                if !exists {
+                                    bc.update_utxo(&new_block);
+                                }
+                                Ok(())
+                            })
+                            .and_then(|_| {
+                                let new_block_hash = util::encode_hex(&new_block.hash);
+                                info!(
+                                    LOG,
+                                    "🔨 🔨 🔨 mining a new block, hash is {}",
+                                    &new_block_hash
+                                );
+                                new_block.transactions.into_iter().for_each(|ts| {
+                                    mem_pool.lock().unwrap().remove(&util::encode_hex(&ts.id));
+                                });
 
-                // notify other nodes to sync the new block
-                &known_nodes.into_iter().for_each(|node| if *node !=
-                    local_node.to_string()
-                {
-                    send_inv(
-                        state.known_nodes.clone(),
-                        &node,
-                        &local_node,
-                        "block",
-                        vec![util::decode_hex(&new_block_hash)],
-                    )
-                });
-            }
-            if mem_pool.len() <= MINING_SIZE {
-                debug!(LOG, "stop mining ...");
+                                let dist_known_nodes = {
+                                    known_nodes.lock().unwrap().clone()
+                                };
+                                for node in &dist_known_nodes {
+                                    if *node != local_node.to_string() {
+                                        send_inv(
+                                            known_nodes.clone(),
+                                            &node,
+                                            &local_node,
+                                            "block",
+                                            vec![util::decode_hex(&new_block_hash)],
+                                        )
+                                    }
+                                }
+                                Ok(())
+                            })
+                    });
+                if res.is_ok() && mem_pool.lock().unwrap().len() >= MINING_SIZE {
+                    continue;
+                }
+                error!(LOG, "mining faild, err: {:?}", res.err());
                 break;
             }
-        }
+            info!(LOG, "{} stop to mining...", &local_node);
+            // reset
+            run_mining.store(false, Ordering::SeqCst);
+        });
     }
     ok_json!()
 }
@@ -401,7 +452,6 @@ pub fn handle_version(
 
 #[post("/inv", format = "application/json", data = "<inv>")]
 pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> Json<Value> {
-
     info!(
         LOG,
         "Received inventory with {} {}",
@@ -417,7 +467,7 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         let block_in_transit = state.block_in_transit.clone();
         let mut block_in_transit = block_in_transit.lock().unwrap();
         let last_height = bc.best_height() as usize;
-        if last_height > (inv.items.len() - 1){
+        if last_height > (inv.items.len() - 1) {
             return ok_json!();
         }
 
@@ -440,7 +490,11 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         let block_hash = items[0].clone();
         *block_in_transit = items;
         block_in_transit.clone().into_iter().for_each(|item| {
-            println!("addr_from:{}, block item:{}", add_from, util::encode_hex(item));
+            println!(
+                "addr_from:{}, block item:{}",
+                add_from,
+                util::encode_hex(item)
+            );
         });
 
         send_get_data(
@@ -489,7 +543,6 @@ pub fn handle_block(
     state: rocket::State<router::BlockState>,
     block_data: Json<Block>,
 ) -> Json<Value> {
-
     info!(LOG, "do block handle");
     let bc = &state.bc.lock().unwrap();
     let local_node = state.local_node.clone();
@@ -506,8 +559,12 @@ pub fn handle_block(
     if let Err(e) = res {
         error!(LOG, "add block faild, err:{:?}", e);
         return bad_data_json!(e);
-    }else if let Ok(true) = res {
-        info!(LOG, "{} has exists, ignore it", util::encode_hex(block_hash));
+    } else if let Ok(true) = res {
+        info!(
+            LOG,
+            "{} has exists, ignore it",
+            util::encode_hex(block_hash)
+        );
         return ok_json!();
     }
 
@@ -526,6 +583,17 @@ pub fn handle_block(
     bc.update_utxo(&new_block);
     info!(LOG, "update utxos successfully.");
 
+    {
+        info!(LOG, "准备加锁!");
+        let mut mem_pool = state.mem_pool.lock().unwrap();
+        info!(LOG, "加锁成功!");
+
+        new_block.transactions.into_iter().for_each(|ts| {
+            info!(LOG, "删除交易{}", &util::encode_hex(&ts.id));
+            mem_pool.remove(&util::encode_hex(&ts.id));
+            info!(LOG, "删除成功");
+        });
+    }
     // TODO why do it in that.
     let block_in_transit = state.block_in_transit.clone();
     {

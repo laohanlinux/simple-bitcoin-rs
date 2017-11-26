@@ -99,13 +99,21 @@ impl BlockChain {
         let last_block = Block::deserialize_block(&last_block_data);
 
         if block.height < last_block.height {
-            return Err(format!("block's height:'{} < {}' too small", block.height, last_block.height));
+            return Err(format!(
+                "block's height:'{} < {}' too small",
+                block.height,
+                last_block.height
+            ));
         }
         if block.height == last_block.height {
             return Err("generate hard fork".to_string());
         }
         if block.height != last_block.height + 1 {
-            return Err(format!("block's height:'{} != {}' too big", block.height, last_block.height));
+            return Err(format!(
+                "block's height:'{} != {}' too big",
+                block.height,
+                last_block.height
+            ));
         }
         if !util::compare_slice_u8(last_hash, &block.prev_block_hash) {
             return Err(format!(
@@ -139,15 +147,15 @@ impl BlockChain {
 
     pub fn delete_blocks(&self, block_hash: &[u8], height: isize) {
         let block_iter = self.iter();
-        let mut delete_hashes:Vec<Vec<u8>> = vec![];
+        let mut delete_hashes: Vec<Vec<u8>> = vec![];
         for block in block_iter {
             if block.height > height {
                 delete_hashes.push(block.hash.clone());
             }
             if block.height == height {
-                if util::compare_slice_u8(block_hash, &block.hash){
+                if util::compare_slice_u8(block_hash, &block.hash) {
                     delete_hashes = vec![];
-                }else {
+                } else {
                     let mut self_tip = self.tip.lock().unwrap();
                     *self_tip = block.prev_block_hash.clone();
 
@@ -161,7 +169,9 @@ impl BlockChain {
             }
         }
 
-        delete_hashes.into_iter().for_each(|hash| self.db.delete(&hash, *BLOCK_PREFIX));
+        delete_hashes.into_iter().for_each(|hash| {
+            self.db.delete(&hash, *BLOCK_PREFIX)
+        });
     }
 
     // TODO optizme it
@@ -283,6 +293,26 @@ impl BlockChain {
         let new_block = Block::new(transactions.clone(), last_hash, last_height + 1);
         let new_block_data = Block::serialize(&new_block);
         self.add_block(&new_block).map(|_| new_block)
+    }
+
+    // mine_block2 not add new block, just generate new block
+    pub fn mine_block2(&self, transactions: &Vec<Transaction>) -> Result<Block, String> {
+        for tx in transactions {
+            if !self.verify_transaction(&tx) {
+                panic!("ERROR: Invalid transaction")
+            }
+        }
+
+        let last_hash = {
+            self.tip.lock().unwrap().to_vec()
+        };
+        let last_block_data = self.db
+            .clone()
+            .get_with_prefix(&last_hash, *BLOCK_PREFIX)
+            .unwrap();
+        let last_block = Block::deserialize_block(&last_block_data);
+        let last_height = last_block.height;
+        Ok(Block::new(transactions.clone(), last_hash, last_height + 1))
     }
 
     pub fn iter(&self) -> IterBlockchain {

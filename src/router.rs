@@ -12,6 +12,9 @@ use block;
 use log::*;
 
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{channel, Sender, Receiver};
+use std::thread;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::collections::HashMap;
 
 pub struct BlockLock {
@@ -175,6 +178,43 @@ impl BlockLock {
         Ok(util::encode_hex(&new_block.hash))
     }
 
+    // TODO Opz mining step
+    pub fn mine_new_block2(
+        &self,
+        mine_addr: String,
+        mem_pool: &HashMap<String, Transaction>,
+    ) -> Result<Receiver<block::Block>, String> {
+        let mut txs = vec![];
+        let cbtx = Transaction::new_coinbase_tx(mine_addr, "".to_owned());
+        txs.push(cbtx);
+        for ts in mem_pool.values() {
+            if self.bc.verify_transaction(ts) {
+                txs.push(ts.clone());
+            }
+        }
+        if txs.len() <= 1 {
+            return Err("no transactions".to_string());
+        }
+
+        // start mine thread backend
+        let bc = Arc::clone(&self.bc);
+        let (send, recv) = channel();
+
+        thread::spawn(move||{
+            let new_block = bc.mine_block(&txs);
+            if new_block.is_err() {
+                error!(LOG, "mine block thread happend error: {:?}", new_block.err());
+                drop(send);
+            }else {
+                let new_block = new_block.unwrap();
+                send.send(new_block.clone()).unwrap();
+                info!(LOG, "{} block will be send by mine thread channel", util::encode_hex(&new_block.hash));
+            }
+        });
+
+        Ok(recv)
+    }
+
     pub fn update_utxo(&self, new_block: &block::Block) {
         self.utxos.update(new_block);
     }
@@ -190,6 +230,7 @@ pub struct BlockState {
     pub mining_address: Arc<String>,
     pub block_in_transit: Arc<Mutex<Vec<Vec<u8>>>>,
     pub mem_pool: Arc<Mutex<HashMap<String, Transaction>>>,
+    pub run_mining: Arc<AtomicBool>,
     pub local_node: Arc<String>,
 }
 
@@ -218,6 +259,7 @@ impl BlockState {
             mining_address: Arc::new(mining_address),
             block_in_transit: Arc::new(Mutex::new(vec![])),
             mem_pool: Arc::new(Mutex::new(HashMap::new())),
+            run_mining: Arc::new(AtomicBool::new(false)),
             local_node: Arc::new(local_node),
         }
     }
