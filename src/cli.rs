@@ -29,28 +29,28 @@ use std::time::Duration;
 use std::thread;
 use std::ops::Fn;
 
-pub fn create_wallet(node: String, del_old: bool) {
+pub fn create_wallet(node: &str, del_old: bool) {
     if del_old {
-        fs::remove_file(&node).unwrap();
+        fs::remove_file(node).unwrap();
     }
     let wallets = Wallets::new().unwrap();
-    wallets.save_to_file(&node);
+    wallets.save_to_file(node);
     info!(
         LOG,
         "All your wallet  address:",
     );
     let address = wallets.list_address();
     address.into_iter().fold(0, |acc, addr| {
-        info!(LOG, "地址[{:?}]=> {:?}", acc, addr);
+        info!(LOG, "addr[{:?}]=> {:?}", acc, addr);
         acc + 1
     });
 }
 
-pub fn add_wallet(node: String) {
-    let mut wallets = Wallets::new_wallets(node.clone()).unwrap();
+pub fn add_wallet(node: &str) {
+    let mut wallets = Wallets::new_wallets(node.to_string()).unwrap();
     let new_address = wallets.create_wallet();
     fs::remove_file(&node).unwrap();
-    wallets.save_to_file(&node);
+    wallets.save_to_file(node);
     info!(LOG, "new wallet's address is {}", new_address);
 }
 
@@ -68,11 +68,11 @@ pub fn open_wallet(node: String) {
     });
 }
 
-pub fn create_blockchain(address: String, node: String) -> Result<(), String> {
-    if !Wallet::validate_address(address.clone()) {
+pub fn create_blockchain(address: &str, node: &str) -> Result<(), String> {
+    if !Wallet::validate_address(address.to_string()) {
         return Err("address is invalid".to_owned());
     }
-    let blockchain = BlockChain::create_blockchain(address, node);
+    let blockchain = BlockChain::create_blockchain(address.to_string(), node.to_string());
     info!(LOG, "block chain disk data create successfully.");
     let ref_bc = Arc::new(blockchain);
     UTXOSet::new(ref_bc.clone()).reindex();
@@ -82,26 +82,26 @@ pub fn create_blockchain(address: String, node: String) -> Result<(), String> {
     Ok(())
 }
 
-pub fn address_check(address: String) -> Result<(), String> {
-    if !Wallet::validate_address(address) {
+pub fn address_check(address: &str) -> Result<(), String> {
+    if !Wallet::validate_address(address.to_string()) {
         return Err("address is invalid".to_owned());
     }
     Ok(())
 }
 
-pub fn list_address(node: String) -> Result<Vec<String>, String> {
-    let wallets = Wallets::new_wallets(node).unwrap();
+pub fn list_address(node: &str) -> Result<Vec<String>, String> {
+    let wallets = Wallets::new_wallets(node.to_string()).unwrap();
     Ok(wallets.list_address())
 }
 
-pub fn download_chain(node: String) -> Result<(), String> {
-    let block_chain = BlockChain::new_blockchain(node);
+pub fn download_chain(node: &str) -> Result<(), String> {
+    let block_chain = BlockChain::new_blockchain(node.to_string());
     let bcs = block_chain.all_blocks();
     Ok(())
 }
 
-pub fn print_chain(node: String) -> Result<(), String> {
-    let block_chain = BlockChain::new_blockchain(node);
+pub fn print_chain(node: &str) -> Result<(), String> {
+    let block_chain = BlockChain::new_blockchain(node.to_string());
     let chain_iter = block_chain.iter();
     for block in chain_iter {
         let mut block_table = Table::new();
@@ -159,11 +159,10 @@ pub fn print_chain(node: String) -> Result<(), String> {
     Ok(())
 }
 
-pub fn reindex_utxo(node: String) -> Result<(), String> {
-    let block_chain = Arc::new(BlockChain::new_blockchain(node));
-    let utxo = UTXOSet::new(block_chain.clone());
+pub fn reindex_utxo(node: &str) -> Result<(), String> {
+    let block_chain = Arc::new(BlockChain::new_blockchain(node.to_string()));
+    let utxo = UTXOSet::new(Arc::clone(&block_chain));
     utxo.reindex();
-
     let count = utxo.count_transactions();
     info!(
         LOG,
@@ -174,39 +173,36 @@ pub fn reindex_utxo(node: String) -> Result<(), String> {
     Ok(())
 }
 
-pub fn get_utxo(txid: String, node: String) -> Result<(), String> {
-    let block_chain = BlockChain::new_blockchain(node);
+pub fn get_utxo(txid: &str, node: &str) -> Result<(), String> {
+    let block_chain = BlockChain::new_blockchain(node.to_string());
     let db = block_chain.db.clone();
     let utxos = db.get_all_with_prefix("utxo-");
-    for kv in &utxos {
-        let k_txid = util::encode_hex(&kv.0);
-        if k_txid == txid {
-            println!("{:?}", String::from_utf8_lossy(&kv.1));
-        }
-    }
+    utxos
+        .into_iter()
+        .filter(|kv| util::encode_hex(&kv.0) == txid.to_string())
+        .for_each(|kv| println!("{:?}", String::from_utf8_lossy(&kv.1)));
     Ok(())
 }
 
-pub fn get_utxos(node: String) -> Result<(), String> {
-    let block_chain = BlockChain::new_blockchain(node);
+pub fn get_utxos(node: &str) -> Result<(), String> {
+    let block_chain = BlockChain::new_blockchain(node.to_string());
     let db = block_chain.db.clone();
     let utxos = db.get_all_with_prefix("utxo-");
-    for kv in &utxos {
-        let k_txid = util::encode_hex(&kv.0);
-        println!("{:?}", k_txid);
-    }
+    utxos.into_iter().for_each(|kv| {
+        println!("{:?}", util::encode_hex(&kv.0))
+    });
     Ok(())
 }
 
-pub fn get_balance(address: String, node: String) -> Result<(), String> {
-    if !Wallet::validate_address(address.clone()) {
+pub fn get_balance(address: &str, node: &str) -> Result<(), String> {
+    if !Wallet::validate_address(address.to_string()) {
         return Err("ERROR: Address is not valid".to_owned());
     }
-    let block_chain = Arc::new(BlockChain::new_blockchain(node));
-    let utxo = UTXOSet::new(block_chain.clone());
+    let block_chain = Arc::new(BlockChain::new_blockchain(node.to_string()));
+    let utxo = UTXOSet::new(Arc::clone(&block_chain));
 
     let mut balance = 0;
-    let pub_key_hash = util::decode_base58(address.clone());
+    let pub_key_hash = util::decode_base58(address.to_string());
     let pub_key_hash = &pub_key_hash[1..(pub_key_hash.len() - 4)];
     let utxos = utxo.find_utxo(pub_key_hash);
     for out in utxos {
@@ -216,10 +212,10 @@ pub fn get_balance(address: String, node: String) -> Result<(), String> {
     Ok(())
 }
 
-pub fn get_balances(wallet_store: String, node: String) -> Result<(), String> {
-    let wallets = Wallets::new_wallets(wallet_store.clone()).unwrap();
+pub fn get_balances(wallet_store: &str, node: &str) -> Result<(), String> {
+    let wallets = Wallets::new_wallets(wallet_store.to_string()).unwrap();
     let address = wallets.list_address();
-    let block_chain = Arc::new(BlockChain::new_blockchain(node.clone()));
+    let block_chain = Arc::new(BlockChain::new_blockchain(node.to_string()));
     let utxo = UTXOSet::new(block_chain.clone());
 
     address.into_iter().for_each(|addr| {
@@ -235,32 +231,33 @@ pub fn get_balances(wallet_store: String, node: String) -> Result<(), String> {
     Ok(())
 }
 
-pub fn list_transactions(node: String) -> Result<(), String> {
-    let block_chain = BlockChain::new_blockchain(node.clone());
+pub fn list_transactions(node: &str) -> Result<(), String> {
+    let block_chain = BlockChain::new_blockchain(node.to_string());
     let block_iter = block_chain.iter();
-    for block in block_iter {
-        for transaction in &block.transactions {
-            println!(
-                "交易 {:?}, 区块为:{:?}",
-                util::encode_hex(&transaction.id),
-                util::encode_hex(&block.hash)
+    block_iter.for_each(|block| {
+        block.transactions.clone().into_iter().for_each(|ts| {
+            info!(
+                LOG,
+                "transaction: {:?}, block: {:?}",
+                util::encode_hex(&ts.id),
+                util::encode_hex(&block.hash),
             );
-        }
-    }
+        });
+    });
     Ok(())
 }
 
 pub fn send(
-    from: String,
-    to: String,
+    from: &str,
+    to: &str,
     amount: isize,
     wallet_store: String,
-    node: String,
+    node: &str,
     central_node: &str,
     local_addr: &str,
     mine_now: bool,
 ) -> Result<(), String> {
-    if !Wallet::validate_address(from.clone()) {
+    if !Wallet::validate_address(from.to_owned()) {
         return Err("ERROR: From's address is not valid".to_owned());
     }
     if !Wallet::validate_address(to.to_string()) {
@@ -270,7 +267,7 @@ pub fn send(
     let utxo = UTXOSet::new(Arc::clone(&block_chain));
     let tx = {
         let wallets = Wallets::new_wallets(wallet_store).unwrap();
-        let from_wallet = wallets.get_wallet(from.clone()).unwrap();
+        let from_wallet = wallets.get_wallet(from.to_owned()).unwrap();
         transaction::Transaction::new_utxo_transaction(
             from_wallet,
             to.to_string(),
@@ -406,36 +403,28 @@ fn sync_block_tick(
 }
 
 fn sync_block_peer(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str) {
-
     #[derive(Serialize, Deserialize, Debug, Default, Clone)]
     struct Data {
         data: Vec<String>,
         status: String,
     }
     let f: Box<Fn(Vec<u8>) + Send> = Box::new(move |data| {
-        let result = serde_json::from_slice(&data.clone());
-        if result.is_err() {
-            error!(
-                LOG,
-                "sync peer nodes list error: {:?}",
-                result.err().unwrap()
-            );
-        } else {
-            let addrs: Data = result.unwrap();
+        let result = serde_json::from_slice(&data.clone()).and_then(|addrs: Data| {
             if addrs.status != "ok" {
                 error!(LOG, "sync peer nodes fail, status code {}", addrs.status);
-                return;
+                return Ok(());
             }
-            let addr_list = addrs.data.clone();
-            {
-                let mut known_nodes = known_nodes.lock().unwrap();
-                addr_list.into_iter().for_each(|addr| {
-                    let exist = known_nodes.clone().into_iter().all(|node| node != addr);
-                    if exist {
-                        known_nodes.push(addr);
-                    }
-                });
-            }
+            let mut known_nodes = known_nodes.lock().unwrap();
+            addrs.data.into_iter().for_each(|addr| {
+                let exist = known_nodes.clone().into_iter().all(|node| node != addr);
+                if exist {
+                    known_nodes.push(addr);
+                }
+            });
+            Ok(())
+        });
+        if let Err(e) = result {
+            error!(LOG, "sync peer nodes list error: {:?}", e);
         }
     });
     let mut arg = pool::DataArg::new(
@@ -446,6 +435,5 @@ fn sync_block_peer(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str)
         &[],
     );
     arg.set_call_back(f);
-    //debug!(LOG, "sync peer nodes");
     pool::put_job(arg);
 }

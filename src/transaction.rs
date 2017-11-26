@@ -32,7 +32,6 @@ pub struct Transaction {
     pub id: Vec<u8>,
     pub vin: Vec<TXInput>, // 索引为vec的索引
     pub vout: Vec<TXOutput>, // 索引为vec的索引
-  //  pub lock_time: u32,
 }
 
 impl Transaction {
@@ -64,13 +63,14 @@ impl Transaction {
         to: String,
         amount: isize,
         utxoset: &UTXOSet,
-        spend_utxos: Option<HashMap<String, Vec<isize>>>
+        spend_utxos: Option<HashMap<String, Vec<isize>>>,
     ) -> Result<Transaction, String> {
         let (mut inputs, mut outputs) = (vec![], vec![]);
         let pub_key = util::public_key_to_vec(&wallet.public_key, false);
         let pub_key_hash = Wallet::hash_pubkey(&pub_key);
         // find the account unspend utxo from utxoset
-        let (acc, valid_outputs) = utxoset.find_spend_able_outputs(&pub_key_hash, amount, spend_utxos);
+        let (acc, valid_outputs) =
+            utxoset.find_spend_able_outputs(&pub_key_hash, amount, spend_utxos);
         if acc < amount {
             return Err("ERROR: Not enough founds".to_owned());
         }
@@ -93,7 +93,6 @@ impl Transaction {
             id: vec![],
             vin: inputs,
             vout: outputs,
-        //    lock_time: time::get_time().sec as u32,
         };
         let txid = tx.hash();
         tx.id = txid;
@@ -103,7 +102,7 @@ impl Transaction {
         );
         res.map(|_| tx)
     }
-    
+
     // TODO add
     pub fn deserialize_transaction(data: &Vec<u8>) -> Transaction {
         serde_json::from_slice(data).unwrap()

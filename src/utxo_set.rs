@@ -32,7 +32,7 @@ impl UTXOSet {
         let mut accumulated = 0;
         let db = self.blockchain.db.clone();
         let spend_outs = spend_outs.unwrap_or_default();
-       
+
         let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
         for kv in &kvs {
             let txid = util::encode_hex(&kv.0);
@@ -40,23 +40,25 @@ impl UTXOSet {
             for (out_idx, out) in &*outs.outputs {
                 // check wether including spend_outs
                 let flag = if let Some(items) = spend_outs.get(&txid) {
-                    items.into_iter().any(|elem| {elem == out_idx})  
-                }else{false};
-                
+                    items.into_iter().any(|elem| elem == out_idx)
+                } else {
+                    false
+                };
+
                 if !flag {
                     if out.is_locked_with_key(pubkey_hash) && accumulated < amout {
                         accumulated += out.value;
                         unspent_outs.entry(txid.clone()).or_insert(vec![]).push(
                             *out_idx,
-                            );
+                        );
                     }
-                } 
+                }
             }
         }
 
         (accumulated, unspent_outs)
     }
-    
+
     /*// HashMap =>  [txid, Vec![out'idx1, out'idx2]]
     pub fn find_spend_able_outputs(
         &self,

@@ -54,5 +54,5 @@ echo "start a mining node"
 sleep 1
 RUST_BACKTRACE=full nohup ./target/debug/bitcoin server --addr 127.0.0.1 --port 3020 --central_node 127.0.0.1:3000 --store "3020_blockchain_db" --node_role mining --mining_addr 17tQE4NbkiTroRwCeqEQF4Y9yVFBGLpL59 > 3020.log 2>&1 &
 
-sleep 1
-RUST_BACKTRACE=full nohup ./target/debug/bitcoin server --addr 127.0.0.1 --port 3021 --central_node 127.0.0.1:3000 --store "3021_blockchain_db" --node_role mining --mining_addr 16rBu48veHyj4AJeDTWE31x1n2D928uNfa > 3021.log 2>&1 &
+#sleep 1
+#RUST_BACKTRACE=full nohup ./target/debug/bitcoin server --addr 127.0.0.1 --port 3021 --central_node 127.0.0.1:3000 --store "3021_blockchain_db" --node_role mining --mining_addr 16rBu48veHyj4AJeDTWE31x1n2D928uNfa > 3021.log 2>&1 &

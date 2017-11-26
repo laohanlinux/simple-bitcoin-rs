@@ -233,27 +233,25 @@ fn run(matches: ArgMatches) -> Result<(), String> {
         ("server", Some(m)) => Ok(run_server(m)),
         _ => Ok(()),
     }
-
-
 }
 
 fn run_new(matches: &ArgMatches, wallet: &str) {
     let force = matches.value_of("force").unwrap().parse::<bool>().unwrap();
-    cli::create_wallet(wallet.to_owned(), force);
+    cli::create_wallet(wallet, force);
 }
 
 fn run_add_wallet(_: &ArgMatches, wallet: &str) {
-    cli::add_wallet(wallet.to_owned());
+    cli::add_wallet(wallet);
 }
 
 fn run_open(_: &ArgMatches, wallet: &str) {
-    cli::open_wallet(wallet.to_owned());
+    cli::open_wallet(wallet.to_string());
 }
 
 fn run_create_blockchain(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
     let address = matches.value_of("address").unwrap();
-    match cli::create_blockchain(address.to_owned(), store.to_owned()) {
+    match cli::create_blockchain(address, store) {
         Ok(_) => {}
         Err(e) => println!("{}", e),
     }
@@ -261,7 +259,7 @@ fn run_create_blockchain(matches: &ArgMatches) {
 
 fn run_address_check(matches: &ArgMatches) {
     let address = matches.value_of("address").unwrap();
-    match cli::address_check(address.to_owned()) {
+    match cli::address_check(address) {
         Ok(_) => print!("{} is valid", address),
         Err(e) => println!("{}", e), 
     }
@@ -269,7 +267,7 @@ fn run_address_check(matches: &ArgMatches) {
 
 fn run_print(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
-    match cli::print_chain(store.to_owned()) {
+    match cli::print_chain(store) {
         Err(e) => println!("{}", e),
         Ok(_) => {}
     }
@@ -277,7 +275,7 @@ fn run_print(matches: &ArgMatches) {
 
 fn run_reindex(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
-    match cli::reindex_utxo(store.to_owned()) {
+    match cli::reindex_utxo(store) {
         Err(e) => println!("{}", e),
         _ => {}
     }
@@ -286,7 +284,7 @@ fn run_reindex(matches: &ArgMatches) {
 fn run_get_balance(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
     let address = matches.value_of("address").unwrap();
-    match cli::get_balance(address.to_owned(), store.to_owned()) {
+    match cli::get_balance(address, store) {
         Err(e) => println!("{}", e),
         _ => {}
     }
@@ -295,7 +293,7 @@ fn run_get_balance(matches: &ArgMatches) {
 fn run_get_balances(matches: &ArgMatches) {
     let wallet_store = matches.value_of("wallet_store").unwrap();
     let store = matches.value_of("store").unwrap();
-    match cli::get_balances(wallet_store.to_owned(), store.to_owned()) {
+    match cli::get_balances(wallet_store, store) {
         Err(e) => print!("{}", e),
         _ => {}
     }
@@ -315,11 +313,11 @@ fn run_send(matches: &ArgMatches) {
         .unwrap();
     let mine = matches.value_of("mine").unwrap().parse::<bool>().unwrap();
     match cli::send(
-        from.to_owned(),
-        to.to_owned(),
+        from,
+        to,
         amount,
         wallet_store.to_owned(),
-        store.to_string(),
+        store,
         central_node,
         local_node,
         mine,
@@ -332,17 +330,17 @@ fn run_send(matches: &ArgMatches) {
 fn run_get_utxo(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
     let txid = matches.value_of("txid").unwrap();
-    cli::get_utxo(txid.to_owned(), store.to_owned()).unwrap();
+    cli::get_utxo(txid, store).unwrap();
 }
 
 fn run_get_utxos(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
-    cli::get_utxos(store.to_owned()).unwrap();
+    cli::get_utxos(store).unwrap();
 }
 
 fn run_list_transactions(matches: &ArgMatches) {
     let store = matches.value_of("store").unwrap();
-    cli::list_transactions(store.to_owned()).unwrap();
+    cli::list_transactions(store).unwrap();
 }
 
 fn run_server(mathes: &ArgMatches) {

@@ -354,41 +354,53 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                 let res = res.and_then(|recv| recv.recv().map_err(|e| format!("{:?}", e)))
                     .and_then(|new_block| {
                         // insert mininged block
-                        let bc = bc.lock().unwrap();
-                        bc.add_new_block(&new_block, false)
-                            .and_then(|exists| {
-                                if !exists {
-                                    bc.update_utxo(&new_block);
-                                }
-                                Ok(())
-                            })
-                            .and_then(|_| {
-                                let new_block_hash = util::encode_hex(&new_block.hash);
-                                info!(
-                                    LOG,
-                                    "🔨 🔨 🔨 mining a new block, hash is {}",
-                                    &new_block_hash
-                                );
-                                new_block.transactions.into_iter().for_each(|ts| {
-                                    mem_pool.lock().unwrap().remove(&util::encode_hex(&ts.id));
-                                });
+                        // TODO sync add mined block by http
+                        /* 
+                          let dist_known_nodes = {
+                                                  known_nodes.lock().unwrap().clone()
+                                                  };
+                                                  for node in &dist_known_nodes {
+                                                  if *node != local_node.to_string() {
+                                                  send_block(known_nodes.clone(), &node, &local_node, new_block.clone());  
+                                                  }
+                                                  }
+                                                  Ok(())
+                        */
+                       let bc = bc.lock().unwrap();
+                       bc.add_new_block(&new_block, false)
+                           .and_then(|exists| {
+                               if !exists {
+                                   bc.update_utxo(&new_block);
+                               }
+                               Ok(())
+                           })
+                           .and_then(|_| {
+                               let new_block_hash = util::encode_hex(&new_block.hash);
+                               info!(
+                                   LOG,
+                                   "🔨 🔨 🔨 mining a new block, hash is {}",
+                                   &new_block_hash
+                               );
+                               new_block.transactions.into_iter().for_each(|ts| {
+                                   mem_pool.lock().unwrap().remove(&util::encode_hex(&ts.id));
+                               });
 
-                                let dist_known_nodes = {
-                                    known_nodes.lock().unwrap().clone()
-                                };
-                                for node in &dist_known_nodes {
-                                    if *node != local_node.to_string() {
-                                        send_inv(
-                                            known_nodes.clone(),
-                                            &node,
-                                            &local_node,
-                                            "block",
-                                            vec![util::decode_hex(&new_block_hash)],
-                                        )
-                                    }
-                                }
-                                Ok(())
-                            })
+                               let dist_known_nodes = {
+                                   known_nodes.lock().unwrap().clone()
+                               };
+                               for node in &dist_known_nodes {
+                                   if *node != local_node.to_string() {
+                                       send_inv(
+                                           known_nodes.clone(),
+                                           &node,
+                                           &local_node,
+                                           "block",
+                                           vec![util::decode_hex(&new_block_hash)],
+                                       )
+                                   }
+                               }
+                               Ok(())
+                           })
                     });
                 if res.is_ok() && mem_pool.lock().unwrap().len() >= MINING_SIZE {
                     continue;
@@ -583,17 +595,11 @@ pub fn handle_block(
     bc.update_utxo(&new_block);
     info!(LOG, "update utxos successfully.");
 
-    {
-        info!(LOG, "准备加锁!");
-        let mut mem_pool = state.mem_pool.lock().unwrap();
-        info!(LOG, "加锁成功!");
-
-        new_block.transactions.into_iter().for_each(|ts| {
-            info!(LOG, "删除交易{}", &util::encode_hex(&ts.id));
-            mem_pool.remove(&util::encode_hex(&ts.id));
-            info!(LOG, "删除成功");
-        });
-    }
+    new_block.transactions.into_iter().for_each(|ts| {
+        state.mem_pool.lock().unwrap().remove(
+            &util::encode_hex(&ts.id),
+        );
+    });
     // TODO why do it in that.
     let block_in_transit = state.block_in_transit.clone();
     {
