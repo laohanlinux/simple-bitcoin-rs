@@ -37,7 +37,11 @@ impl BlockLock {
     }
 
     pub fn test_last_block(&self) -> (isize, String, String) {
-        (self.bc.get_best_height(), util::encode_hex(self.bc.get_tip()), self.bc.last_block_hash())
+        (
+            self.bc.get_best_height(),
+            util::encode_hex(self.bc.get_tip()),
+            self.bc.last_block_hash(),
+        )
     }
 
     pub fn tx(&self, txid: &str) -> Option<(String, isize, Transaction)> {
@@ -80,8 +84,11 @@ impl BlockLock {
         tx.map_err(|e| format!("{:?}", e))
     }
 
-    pub fn add_new_block(&self, new_block: &block::Block,
-                         from_central_node: bool) -> Result<bool, String> {
+    pub fn add_new_block(
+        &self,
+        new_block: &block::Block,
+        from_central_node: bool,
+    ) -> Result<bool, String> {
         let block_hash = &new_block.hash;
         if self.bc.get_block(&block_hash).is_some() {
             //debug!(LOG, "{} has exist, ignore", util::encode_hex(&block_hash));
@@ -89,12 +96,33 @@ impl BlockLock {
         }
 
         if from_central_node {
-            warn!(LOG, "may be delete fork block, hash: {}, height: {}", util::encode_hex(block_hash), new_block.height);
+            warn!(
+                LOG,
+                "may be delete fork block, hash: {}, height: {}",
+                util::encode_hex(block_hash),
+                new_block.height
+            );
             // clear confect blocks
             self.bc.delete_blocks(&new_block.hash, new_block.height);
         }
 
         // TODO check new block
+        let verify = new_block.transactions.iter().any(|ts| {
+            // transactions' input should in utxo
+            if ts.is_coinbase() {
+                return true;
+            }
+
+            ts.vin.iter().any(|vin| {
+                self.utxos
+                    .utxo(&vin.txid)
+                    .map(|outputs| outputs.outputs.get(&vin.vout).is_some())
+                    .is_some()
+            })
+        });
+        if !verify {
+            return Err("block is invalid".to_string());
+        }
         self.bc.add_block(new_block).map(|_| false)
     }
 
@@ -200,15 +228,23 @@ impl BlockLock {
         let bc = Arc::clone(&self.bc);
         let (send, recv) = channel();
 
-        thread::spawn(move||{
+        thread::spawn(move || {
             let new_block = bc.mine_block(&txs);
             if new_block.is_err() {
-                error!(LOG, "mine block thread happend error: {:?}", new_block.err());
+                error!(
+                    LOG,
+                    "mine block thread happend error: {:?}",
+                    new_block.err()
+                );
                 drop(send);
-            }else {
+            } else {
                 let new_block = new_block.unwrap();
                 send.send(new_block.clone()).unwrap();
-                info!(LOG, "{} block will be send by mine thread channel", util::encode_hex(&new_block.hash));
+                info!(
+                    LOG,
+                    "{} block will be send by mine thread channel",
+                    util::encode_hex(&new_block.hash)
+                );
             }
         });
 

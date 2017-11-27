@@ -59,34 +59,6 @@ impl UTXOSet {
         (accumulated, unspent_outs)
     }
 
-    /*// HashMap =>  [txid, Vec![out'idx1, out'idx2]]
-    pub fn find_spend_able_outputs(
-        &self,
-        pubkey_hash: &[u8],
-        amout: isize,
-    ) -> (isize, HashMap<String, Vec<isize>>) {
-        let mut unspent_outs: HashMap<String, Vec<isize>> = HashMap::new();
-        let mut accumulated = 0;
-        let db = self.blockchain.db.clone();
-
-        let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
-        for kv in &kvs {
-            let txid = util::encode_hex(&kv.0);
-            let outs = TXOutputs::deserialize_outputs(&kv.1);
-            for (out_idx, out) in &*outs.outputs {
-                if out.is_locked_with_key(pubkey_hash) && accumulated < amout {
-                    accumulated += out.value;
-                    unspent_outs.entry(txid.clone()).or_insert(vec![]).push(
-                        *out_idx,
-                    );
-                }
-            }
-        }
-
-        (accumulated, unspent_outs)
-    }
-    */
-
     // |netenv|pub_key_hash|checksum|
     pub fn find_utxo(&self, pubkey_hash: &[u8]) -> Vec<TXOutput> {
         let mut utxos = Vec::<TXOutput>::new();
@@ -112,6 +84,13 @@ impl UTXOSet {
         utxos
     }
 
+    pub fn utxo(&self, txid_in: &[u8]) -> Option<TXOutputs> {
+        self.blockchain
+            .db
+            .get_with_prefix(txid_in, UTXO_BLOCK_PREFIX)
+            .map(|out_bytes| TXOutputs::deserialize_outputs(&out_bytes))
+    }
+
     pub fn count_transactions(&self) -> usize {
         let db = &self.blockchain.db.clone();
         let kvs = db.get_all_with_prefix(UTXO_BLOCK_PREFIX);
@@ -126,7 +105,6 @@ impl UTXOSet {
         }
         for kv in &kvs {
             db.delete(&kv.0, UTXO_BLOCK_PREFIX);
-            //warn!(LOG, "delete key {:?}, {:?}", kv.0, &kv.1);
         }
 
         let utxos = self.blockchain.find_utxo();

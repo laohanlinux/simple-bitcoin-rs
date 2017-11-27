@@ -333,16 +333,19 @@ impl BlockChain {
         tx: &mut Transaction,
         secret_key: &SecretKey,
     ) -> Result<(), String> {
-        let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
+        let mut prev_txs: HashMap<isize, Transaction> = HashMap::new();
+        let mut idx = 0;
+
         for vin in &tx.vin {
             if let Some(prev_tx) = self.find_transaction(&vin.txid) {
-                prev_txs.insert(util::encode_hex(&prev_tx.id), prev_tx);
+                prev_txs.insert(idx, prev_tx);
             } else {
                 return Err(format!(
                     "not found the transation, txid:{}",
                     util::encode_hex(&vin.txid)
                 ));
             }
+            idx += 1;
         }
         tx.sign(&secret_key, &prev_txs);
         Ok(())
@@ -354,7 +357,8 @@ impl BlockChain {
             return true;
         }
 
-        let mut prevs_tx: HashMap<String, Transaction> = HashMap::new();
+        let mut prevs_tx: HashMap<isize, Transaction> = HashMap::new();
+        let mut idx = 0;
         for vin in &tx.vin {
             let prev_tx = {
                 let res_pre_tx = self.find_transaction(&vin.txid);
@@ -363,7 +367,8 @@ impl BlockChain {
                 }
                 res_pre_tx.unwrap()
             };
-            prevs_tx.insert(util::encode_hex(&prev_tx.id), prev_tx);
+            prevs_tx.insert(idx, prev_tx);
+            idx += 1;
         }
         tx.verify(&prevs_tx)
     }

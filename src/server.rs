@@ -355,52 +355,41 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                     .and_then(|new_block| {
                         // insert mininged block
                         // TODO sync add mined block by http
-                        /* 
-                          let dist_known_nodes = {
-                                                  known_nodes.lock().unwrap().clone()
-                                                  };
-                                                  for node in &dist_known_nodes {
-                                                  if *node != local_node.to_string() {
-                                                  send_block(known_nodes.clone(), &node, &local_node, new_block.clone());  
-                                                  }
-                                                  }
-                                                  Ok(())
-                        */
-                       let bc = bc.lock().unwrap();
-                       bc.add_new_block(&new_block, false)
-                           .and_then(|exists| {
-                               if !exists {
-                                   bc.update_utxo(&new_block);
-                               }
-                               Ok(())
-                           })
-                           .and_then(|_| {
-                               let new_block_hash = util::encode_hex(&new_block.hash);
-                               info!(
-                                   LOG,
-                                   "🔨 🔨 🔨 mining a new block, hash is {}",
-                                   &new_block_hash
-                               );
-                               new_block.transactions.into_iter().for_each(|ts| {
-                                   mem_pool.lock().unwrap().remove(&util::encode_hex(&ts.id));
-                               });
+                        let bc = bc.lock().unwrap();
+                        bc.add_new_block(&new_block, false)
+                            .and_then(|exists| {
+                                if !exists {
+                                    bc.update_utxo(&new_block);
+                                }
+                                Ok(())
+                            })
+                            .and_then(|_| {
+                                let new_block_hash = util::encode_hex(&new_block.hash);
+                                info!(
+                                    LOG,
+                                    "🔨 🔨 🔨 mining a new block, hash is {}",
+                                    &new_block_hash
+                                );
+                                new_block.transactions.into_iter().for_each(|ts| {
+                                    mem_pool.lock().unwrap().remove(&util::encode_hex(&ts.id));
+                                });
 
-                               let dist_known_nodes = {
-                                   known_nodes.lock().unwrap().clone()
-                               };
-                               for node in &dist_known_nodes {
-                                   if *node != local_node.to_string() {
-                                       send_inv(
-                                           known_nodes.clone(),
-                                           &node,
-                                           &local_node,
-                                           "block",
-                                           vec![util::decode_hex(&new_block_hash)],
-                                       )
-                                   }
-                               }
-                               Ok(())
-                           })
+                                let dist_known_nodes = {
+                                    known_nodes.lock().unwrap().clone()
+                                };
+                                for node in &dist_known_nodes {
+                                    if *node != local_node.to_string() {
+                                        send_inv(
+                                            known_nodes.clone(),
+                                            &node,
+                                            &local_node,
+                                            "block",
+                                            vec![util::decode_hex(&new_block_hash)],
+                                        )
+                                    }
+                                }
+                                Ok(())
+                            })
                     });
                 if res.is_ok() && mem_pool.lock().unwrap().len() >= MINING_SIZE {
                     continue;

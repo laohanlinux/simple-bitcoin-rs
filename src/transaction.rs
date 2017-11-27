@@ -126,27 +126,27 @@ impl Transaction {
         hasher.result().to_vec()
     }
 
-    pub fn sign(&mut self, secret_key: &SecretKey, prev_txs: &HashMap<String, Transaction>) {
+    pub fn sign(&mut self, secret_key: &SecretKey, prev_txs: &HashMap<isize, Transaction>) {
         if self.is_coinbase() {
             return;
         }
 
         // check input wether reference some pre block output
-        for tx_input in &self.vin {
-            if prev_txs.get(&hex::encode(&tx_input.txid)).is_none() {
-                panic!("ERROR: Previous transaction is not correct");
-            }
-        }
+        self.vin.iter().fold(0, |acc, _| {
+            assert!(prev_txs.get(&acc).is_some());
+            acc + 1
+        });
 
         let mut tx_copy = self.trimmed_copy();
         let mut sign_vec = Vec::new();
-        let mut inid_idx = 0;
-        for tx_input in &self.vin {
-            let prev_tx: &Transaction = prev_txs.get(&hex::encode(&tx_input.txid)).unwrap();
+
+        self.vin.iter().fold(0, |acc, tx_input| {
+            let prev_tx: &Transaction = prev_txs.get(&acc).unwrap();
             // reset signation
-            tx_copy.vin[inid_idx].signature = vec![];
+            tx_copy.vin[acc as usize].signature = vec![];
             // set reference's output public key
-            tx_copy.vin[inid_idx].pub_key = prev_tx.vout[inid_idx].pub_key_hash.clone();
+            tx_copy.vin[acc as usize].pub_key =
+                prev_tx.vout[tx_input.vout as usize].pub_key_hash.clone();
 
             let origin_data_to_sign = util::packet_sign_content(&tx_copy);
             let origin_data_to_sign = util::double_sha256(origin_data_to_sign);
@@ -155,16 +155,16 @@ impl Transaction {
             sign_vec.push(signature);
 
             // reset tx_copy's public key
-            tx_copy.vin[inid_idx].pub_key = vec![];
-            inid_idx += 1;
-        }
+            tx_copy.vin[acc as usize].pub_key = vec![];
+            acc + 1
+        });
+
         // update signatures, notic, we not set input's public key,
         // as say, every input's public key is nil
-        inid_idx = 0;
-        for tx_input in self.vin.iter_mut() {
-            tx_input.signature = sign_vec[inid_idx].clone();
-            inid_idx += 1;
-        }
+        self.vin.iter_mut().fold(0, |acc, tx_input| {
+            tx_input.signature = sign_vec[acc].clone();
+            acc + 1
+        });
     }
 
     // String returns a human-readable representation of a transaction
@@ -252,37 +252,36 @@ impl Transaction {
     // Verify verifies signatures of Transaction inputs
     // tx_input = |txid|vout|sig|pkey| ==> |txid = 0| vout| sig = "" | pkey = reference pkey|
     // ==> sign(vout, pkey)
-    pub fn verify(&self, prev_txs: &HashMap<String, Transaction>) -> bool {
+    pub fn verify(&self, prev_txs: &HashMap<isize, Transaction>) -> bool {
         if self.is_coinbase() {
             return true;
         }
 
-        // check input of prev output's reference
-        for vin in &self.vin {
-            if prev_txs[&hex::encode(&vin.txid)].id.len() == 0 {
-                panic!("ERROR: Previous transaction is not correct");
-            }
-        }
+        // check input wether reference some pre block output
+        self.vin.iter().fold(0, |acc, _| {
+            assert!(prev_txs.get(&acc).is_some());
+            acc + 1
+        });
 
         let tx_copy = &mut self.trimmed_copy();
-        let mut inid_idx = 0;
-
-        // TODO
-        for tx_input in self.vin.iter() {
-            let prev_tx: &Transaction = prev_txs.get(&hex::encode(&tx_input.txid)).unwrap();
-            tx_copy.vin[inid_idx].signature = vec![];
-            tx_copy.vin[inid_idx].pub_key = prev_tx.vout[inid_idx].pub_key_hash.clone();
+        let mut verify = true;
+        self.vin.iter().fold(0, |acc, tx_input| {
+            if !verify {
+                return acc + 1;
+            }
+            let prev_tx: &Transaction = prev_txs.get(&acc).unwrap();
+            tx_copy.vin[acc as usize].signature = vec![];
+            tx_copy.vin[acc as usize].pub_key =
+                prev_tx.vout[tx_input.vout as usize].pub_key_hash.clone();
 
             let origin_data_to_sign = util::packet_sign_content(&tx_copy);
-            let verify = util::verify(&tx_input.pub_key, &tx_input.signature, origin_data_to_sign);
-            if verify {
-                return verify;
-            }
+            verify = util::verify(&tx_input.pub_key, &tx_input.signature, origin_data_to_sign);
 
-            tx_copy.vin[inid_idx].pub_key = vec![];
-            inid_idx += 1;
-        }
-        true
+            tx_copy.vin[acc as usize].pub_key = vec![];
+            acc + 1
+        });
+
+        verify
     }
 }
 
