@@ -60,10 +60,7 @@ impl BlockLock {
 
     pub fn block_hashes(&self) -> Vec<String> {
         let hashes = &self.bc.get_block_hashes();
-        hashes
-            .into_iter()
-            .map(|item| util::encode_hex(item))
-            .collect()
+        hashes.iter().map(util::encode_hex).collect()
     }
 
     pub fn create_new_utxo_transaction(
@@ -75,7 +72,7 @@ impl BlockLock {
     ) -> Result<Transaction, String> {
         let utxos = &self.utxos;
         let tx = Transaction::new_utxo_transaction(
-            &from_wallet,
+            from_wallet,
             to.to_owned(),
             amount,
             utxos,
@@ -90,8 +87,7 @@ impl BlockLock {
         from_central_node: bool,
     ) -> Result<bool, String> {
         let block_hash = &new_block.hash;
-        if self.bc.get_block(&block_hash).is_some() {
-            //debug!(LOG, "{} has exist, ignore", util::encode_hex(&block_hash));
+        if self.bc.get_block(block_hash).is_some() {
             return Ok(true);
         }
 
@@ -156,16 +152,17 @@ impl BlockLock {
             balance += out.value;
         }
         let mut res: HashMap<String, String> = HashMap::new();
-        res.entry("addr".to_owned()).or_insert(addr.to_string());
-        res.entry("balance".to_owned()).or_insert(
-            balance.to_string(),
+        res.entry("addr".to_owned()).or_insert_with(
+            || addr.to_string(),
+        );
+        res.entry("balance".to_owned()).or_insert_with(
+            || balance.to_string(),
         );
         res
     }
 
     pub fn unspend_utxo(&self) -> Vec<String> {
-        let db = self.bc.db.clone();
-        let utxos = db.get_all_with_prefix("utxo-");
+        let utxos = self.bc.db.get_all_with_prefix("utxo-");
         utxos
             .into_iter()
             .map(|(k, _)| util::encode_hex(&k))
@@ -274,7 +271,7 @@ impl BlockState {
     pub fn new(
         bc: BlockChain,
         local_node: String,
-        central_node: String,
+        central_node: &str,
         mining_address: String,
     ) -> BlockState {
 
@@ -282,7 +279,7 @@ impl BlockState {
         let utxos = utxo_set::UTXOSet::new(Arc::clone(&bc));
         utxos.reindex();
 
-        let mut known_nodes = vec![central_node.clone()];
+        let mut known_nodes = vec![central_node.to_string()];
         if known_nodes[0] != local_node.clone() {
             known_nodes.push(local_node.clone());
         }

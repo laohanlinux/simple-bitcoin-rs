@@ -187,7 +187,7 @@ pub fn handle_transfer(
         let known_nodes = known_nodes.lock().unwrap();
         known_nodes[0].clone()
     };
-    send_tx(known_nodes, &central_node, &local_addr, &tx);
+    send_tx(&known_nodes, &central_node, &local_addr, &tx);
     ok_json!()
 }
 
@@ -222,10 +222,10 @@ pub fn handle_get_heigt_block_data(
     let res = bc.block_with_height(height_data.height);
     if let Some(block) = res {
         send_block(
-            state.known_nodes.clone(),
+            &state.known_nodes,
             &height_data.add_from,
             &local_node,
-            block,
+            &block,
         );
         return ok_json!();
     }
@@ -255,10 +255,10 @@ pub fn handle_get_block_data(
             return bad_json!();
         }
         send_block(
-            state.known_nodes.clone(),
+            &state.known_nodes,
             &block_data.add_from,
             &local_node,
-            block.unwrap(),
+            &block.unwrap(),
         );
     }
     if get_type == "tx" {
@@ -278,12 +278,7 @@ pub fn handle_get_block_data(
             txid,
             &block_data.add_from
         );
-        send_tx(
-            state.known_nodes.clone(),
-            &block_data.add_from,
-            &local_node,
-            &tx,
-        );
+        send_tx(&state.known_nodes, &block_data.add_from, &local_node, &tx);
     }
 
     ok_json!()
@@ -317,10 +312,10 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
     // the local node is central node, it just do forward the new transactions to other nodes in the network.
     if local_node.to_lowercase() == known_nodes[0].to_lowercase() {
         let txid = &ts.id;
-        known_nodes.clone().into_iter().for_each(|node| {
+        known_nodes.iter().for_each(|node| {
             info!(LOG, "forward transaction to {}", &node);
             send_inv(
-                state.known_nodes.clone(),
+                &state.known_nodes,
                 &node,
                 &local_node,
                 "tx",
@@ -380,7 +375,7 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                                 for node in &dist_known_nodes {
                                     if *node != local_node.to_string() {
                                         send_inv(
-                                            known_nodes.clone(),
+                                            &known_nodes,
                                             &node,
                                             &local_node,
                                             "block",
@@ -414,12 +409,9 @@ pub fn handle_get_blocks(
 
     let bc = &state.bc.lock().unwrap();
     let ref hashes: Vec<String> = bc.block_hashes();
-    let hashes_vec: Vec<Vec<u8>> = hashes
-        .into_iter()
-        .map(|item| util::decode_hex(&item))
-        .collect();
+    let hashes_vec: Vec<Vec<u8>> = hashes.iter().map(util::decode_hex).collect();
     send_inv(
-        state.known_nodes.clone(),
+        &state.known_nodes,
         &blocks.add_from,
         &state.local_node,
         "block",
@@ -438,14 +430,14 @@ pub fn handle_version(
     let foreigner_best_height = version.best_height;
     let local_node = state.local_node.clone();
     if my_best_height < foreigner_best_height {
-        send_get_block(state.known_nodes.clone(), &version.addr_from, &local_node);
+        send_get_block(&state.known_nodes, &version.addr_from, &local_node);
     } else if my_best_height > foreigner_best_height {
         send_version(
-            state.known_nodes.clone(),
+            &state.known_nodes,
             &version.addr_from,
             "/version",
             &local_node,
-            bc.block_chain(),
+            &bc.block_chain(),
         );
     }
     ok_json!()
@@ -472,7 +464,7 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
             return ok_json!();
         }
 
-        inv.items.clone().into_iter().for_each(|item| {
+        inv.items.iter().for_each(|item| {
             debug!(
                 LOG,
                 "addr_from:{}, block item:{}",
@@ -490,7 +482,7 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         items.reverse();
         let block_hash = items[0].clone();
         *block_in_transit = items;
-        block_in_transit.clone().into_iter().for_each(|item| {
+        block_in_transit.iter().for_each(|item| {
             println!(
                 "addr_from:{}, block item:{}",
                 add_from,
@@ -499,7 +491,7 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         });
 
         send_get_data(
-            state.known_nodes.clone(),
+            &state.known_nodes,
             add_from,
             &local_node,
             "block".to_owned(),
@@ -527,7 +519,7 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
                 &inv.add_from
             );
             send_get_data(
-                state.known_nodes.clone(),
+                &state.known_nodes,
                 add_from,
                 &local_node,
                 "tx".to_owned(),
@@ -596,7 +588,7 @@ pub fn handle_block(
         if bc_in_transit.len() > 0 {
             let block_hash = bc_in_transit[0].clone();
             send_get_data(
-                state.known_nodes.clone(),
+                &state.known_nodes,
                 &block_data.add_from,
                 &local_node,
                 "block".to_owned(),
@@ -623,13 +615,13 @@ fn request_blocks(know_nodes: Arc<Mutex<Vec<String>>>, local_node: &str) {
         know_nodes.clone().into_iter().map(|node| node.clone())
     };
     for node in know_nodes_copy {
-        send_get_block(know_nodes.clone(), &node, local_node)
+        send_get_block(&know_nodes, &node, local_node)
     }
 }
 
 // path => /get_data
 fn send_get_data(
-    known_nodes: Arc<Mutex<Vec<String>>>,
+    known_nodes: &Arc<Mutex<Vec<String>>>,
     addr: &str,
     local_node: &str,
     kind: String,
@@ -645,7 +637,7 @@ fn send_get_data(
 }
 
 // path => /addr
-pub fn send_addr(know_nodes: Arc<Mutex<Vec<String>>>, addr: &str, addr_list: Vec<String>) {
+pub fn send_addr(know_nodes: &Arc<Mutex<Vec<String>>>, addr: &str, addr_list: Vec<String>) {
     let join_cluster = Addr { addr_list: addr_list };
     let data = serde_json::to_vec(&join_cluster).unwrap();
     do_post_request(know_nodes, addr, "/addr", &data);
@@ -654,11 +646,11 @@ pub fn send_addr(know_nodes: Arc<Mutex<Vec<String>>>, addr: &str, addr_list: Vec
 // send local node version to remote addr
 // path => /version
 pub fn send_version(
-    known_nodes: Arc<Mutex<Vec<String>>>,
+    known_nodes: &Arc<Mutex<Vec<String>>>,
     addr: &str,
     path: &str,
     local_node: &str,
-    bc: Arc<BlockChain>,
+    bc: &Arc<BlockChain>,
 ) {
     let best_height = bc.get_best_height();
     let version = Version::new(NODE_VERSION, best_height, local_node.to_owned());
@@ -667,7 +659,7 @@ pub fn send_version(
 }
 // path => /tx
 pub fn send_tx(
-    known_nodes: Arc<Mutex<Vec<String>>>,
+    known_nodes: &Arc<Mutex<Vec<String>>>,
     addr: &str,
     local_node: &str,
     tx: &Transaction,
@@ -681,20 +673,20 @@ pub fn send_tx(
 
 // path => /block
 fn send_block(
-    known_nodes: Arc<Mutex<Vec<String>>>,
+    known_nodes: &Arc<Mutex<Vec<String>>>,
     addr: &str,
     local_node: &str,
-    block: block::Block,
+    block: &block::Block,
 ) {
     let data = serde_json::to_vec(&Block {
         add_from: local_node.to_owned(),
-        block: serde_json::to_vec(&block).unwrap(),
+        block: serde_json::to_vec(block).unwrap(),
     }).unwrap();
     do_post_request(known_nodes, addr, "/block", &data);
 }
 
 // path => /get_blocks
-fn send_get_block(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, local_node: &str) {
+fn send_get_block(known_nodes: &Arc<Mutex<Vec<String>>>, addr: &str, local_node: &str) {
     let request = GetBlocks { add_from: local_node.to_owned() };
     let data = serde_json::to_vec(&request).unwrap();
     do_post_request(known_nodes, addr, "/get_blocks", &data);
@@ -702,7 +694,7 @@ fn send_get_block(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, local_node: 
 
 // path => /inv
 fn send_inv(
-    known_nodes: Arc<Mutex<Vec<String>>>,
+    known_nodes: &Arc<Mutex<Vec<String>>>,
     addr: &str,
     local_node: &str,
     kind: &str,
@@ -717,16 +709,16 @@ fn send_inv(
     do_post_request(known_nodes, addr, "/inv", &data);
 }
 
-fn do_get_request(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str, data: &[u8]) {
+fn do_get_request(known_nodes: &Arc<Mutex<Vec<String>>>, addr: &str, path: &str, data: &[u8]) {
     send_data(known_nodes, addr, path, "GET", vec![], data);
 }
 
-fn do_post_request(known_nodes: Arc<Mutex<Vec<String>>>, addr: &str, path: &str, data: &[u8]) {
+fn do_post_request(known_nodes: &Arc<Mutex<Vec<String>>>, addr: &str, path: &str, data: &[u8]) {
     send_data(known_nodes, addr, path, "POST", vec![], data);
 }
 
 fn send_data(
-    known_nodes: Arc<Mutex<Vec<String>>>,
+    known_nodes: &Arc<Mutex<Vec<String>>>,
     addr: &str,
     path: &str,
     method: &str,

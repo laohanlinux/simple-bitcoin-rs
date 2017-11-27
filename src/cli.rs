@@ -75,7 +75,7 @@ pub fn create_blockchain(address: &str, node: &str) -> Result<(), String> {
     let blockchain = BlockChain::create_blockchain(address.to_string(), node.to_string());
     info!(LOG, "block chain disk data create successfully.");
     let ref_bc = Arc::new(blockchain);
-    UTXOSet::new(ref_bc.clone()).reindex();
+    UTXOSet::new(Arc::clone(&ref_bc)).reindex();
     let last_hash = ref_bc.last_block_hash();
     info!(LOG, "utxoset reindexs successfully.");
     info!(LOG, "genius block {}", last_hash);
@@ -125,24 +125,20 @@ pub fn print_chain(node: &str) -> Result<(), String> {
             )),
             Cell::new(&format!("{}", &block.timestamp)),
         ]));
-        for i in 0..3 {
-            println!("");
-        }
+        (0..3).for_each(|_| println!());
         println!("Block");
         block_table.printstd();
         let tx_number = RefCell::new(1);
-        &block.transactions.into_iter().for_each(|tx| {
+        block.transactions.into_iter().for_each(|tx| {
             let (txid, in_rows, out_rows) = tx.to_string(true);
             let mut in_table = Table::new();
             let mut out_table = Table::new();
-            in_rows.into_iter().for_each(|row| {
-                in_table.add_row(row);
-                ()
-            });
-            out_rows.into_iter().for_each(|row| {
-                out_table.add_row(row);
-                ()
-            });
+            in_rows.into_iter().for_each(
+                |row| { in_table.add_row(row); },
+            );
+            out_rows.into_iter().for_each(
+                |row| { out_table.add_row(row); },
+            );
             {
                 println!("交易{}, id:{}", tx_number.borrow(), txid);
             }
@@ -152,7 +148,7 @@ pub fn print_chain(node: &str) -> Result<(), String> {
             out_table.printstd();
             *tx_number.borrow_mut() += 1;
         });
-        if block.prev_block_hash.len() == 0 {
+        if block.prev_block_hash.is_empty() {
             break;
         }
     }
@@ -161,7 +157,7 @@ pub fn print_chain(node: &str) -> Result<(), String> {
 
 pub fn reindex_utxo(node: &str) -> Result<(), String> {
     let block_chain = Arc::new(BlockChain::new_blockchain(node.to_string()));
-    let utxo = UTXOSet::new(Arc::clone(&block_chain));
+    let utxo = UTXOSet::new(block_chain);
     utxo.reindex();
     let count = utxo.count_transactions();
     info!(
@@ -175,19 +171,17 @@ pub fn reindex_utxo(node: &str) -> Result<(), String> {
 
 pub fn get_utxo(txid: &str, node: &str) -> Result<(), String> {
     let block_chain = BlockChain::new_blockchain(node.to_string());
-    let db = block_chain.db.clone();
-    let utxos = db.get_all_with_prefix("utxo-");
+    let utxos = block_chain.db.get_all_with_prefix("utxo-");
     utxos
         .into_iter()
-        .filter(|kv| util::encode_hex(&kv.0) == txid.to_string())
+        .filter(|kv| util::encode_hex(&kv.0) == txid)
         .for_each(|kv| println!("{:?}", String::from_utf8_lossy(&kv.1)));
     Ok(())
 }
 
 pub fn get_utxos(node: &str) -> Result<(), String> {
     let block_chain = BlockChain::new_blockchain(node.to_string());
-    let db = block_chain.db.clone();
-    let utxos = db.get_all_with_prefix("utxo-");
+    let utxos = block_chain.db.get_all_with_prefix("utxo-");
     utxos.into_iter().for_each(|kv| {
         println!("{:?}", util::encode_hex(&kv.0))
     });
@@ -216,11 +210,11 @@ pub fn get_balances(wallet_store: &str, node: &str) -> Result<(), String> {
     let wallets = Wallets::new_wallets(wallet_store.to_string()).unwrap();
     let address = wallets.list_address();
     let block_chain = Arc::new(BlockChain::new_blockchain(node.to_string()));
-    let utxo = UTXOSet::new(block_chain.clone());
+    let utxo = UTXOSet::new(Arc::clone(&block_chain));
 
     address.into_iter().for_each(|addr| {
         let mut balance = 0;
-        let pub_key_hash = util::decode_base58(addr.clone());
+        let pub_key_hash = util::decode_base58(addr.to_string());
         let pub_key_hash = &pub_key_hash[1..(pub_key_hash.len() - 4)];
         let utxos = utxo.find_utxo(pub_key_hash);
         for out in utxos {
@@ -303,7 +297,7 @@ pub fn send(
     }
 
     let known_nodes = Arc::new(Mutex::new(vec![central_node.to_string()]));
-    server::send_tx(known_nodes, central_node, local_addr, &tx);
+    server::send_tx(&known_nodes, central_node, local_addr, &tx);
     info!(LOG, "{:?} send {} to {:?}", from, amount, to);
     Ok(())
 }
@@ -321,7 +315,7 @@ pub fn start_server(
     let block_state = router::BlockState::new(
         block_chain,
         local_node.clone(),
-        central_node.to_string(),
+        central_node,
         mining_addr.to_string(),
     );
     let known_nodes = Arc::clone(&block_state.known_nodes);
@@ -339,18 +333,18 @@ pub fn start_server(
                 "start as mining role, mining pub address is {}",
                 mining_addr
             );
-            server::send_addr(Arc::clone(&known_nodes), central_node, addr_list);
+            server::send_addr(&known_nodes, central_node, addr_list);
             sync_block_tick(&known_nodes, central_node, "/version", &local_node, &bc);
         }
         NodeRole::WalletNode => {
             info!(LOG, "start as wallet role");
-            server::send_addr(Arc::clone(&known_nodes), central_node, addr_list);
+            server::send_addr(&known_nodes, central_node, addr_list);
             sync_block_tick(&known_nodes, central_node, "/version", &local_node, &bc);
         }
         NodeRole::CentralNode => {
             info!(LOG, "start as central role");
             if local_node != central_node {
-                server::send_addr(Arc::clone(&known_nodes), central_node, addr_list);
+                server::send_addr(&known_nodes, central_node, addr_list);
                 sync_block_tick(&known_nodes, central_node, "/version", &local_node, &bc);
             }
         }
@@ -381,23 +375,10 @@ fn sync_block_tick(
     bc: &Arc<BlockChain>,
 ) {
     let tick = chan::tick(Duration::from_secs(3));
-
-    server::send_version(
-        Arc::clone(known_nodes),
-        addr,
-        path,
-        local_node,
-        Arc::clone(bc),
-    );
+    server::send_version(known_nodes, addr, path, local_node, bc);
     loop {
         tick.recv().unwrap();
-        server::send_version(
-            Arc::clone(known_nodes),
-            addr,
-            path,
-            local_node,
-            Arc::clone(bc),
-        );
+        server::send_version(known_nodes, addr, path, local_node, bc);
         sync_block_peer(Arc::clone(known_nodes), addr, "/node/list");
     }
 }
