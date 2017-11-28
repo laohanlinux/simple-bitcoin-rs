@@ -384,7 +384,6 @@ mod tests {
             let ser = super::TXOutputs::serialize(&outputs);
             let expect_outputs = super::TXOutputs::deserialize_outputs(&ser);
             assert_eq!(expect_outputs.outputs.len(), outputs.outputs.len());
-            // assert_eq!(expect_outputs.outputs.entry(, );
         }
     }
 

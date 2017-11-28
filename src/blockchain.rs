@@ -19,7 +19,8 @@ lazy_static! {
 }
 
 pub const DBFILE: &str = "{}/blockchain.db";
-pub const NEW_BLOCK_TIMEOUT: i64 = 60*20;
+pub const NEW_BLOCK_TIMEOUT: i64 = 60 * 20;
+pub const MAX_BLOCK_SIZE: usize = 1024 * 1024;
 
 // TODO add locker locks blockchain update
 pub struct BlockChain {
@@ -96,7 +97,6 @@ impl BlockChain {
             .get_with_prefix(*LAST_BLOCK_HASH_KEY, *LAST_BLOCK_HASH_PREFIX)
             .unwrap();
         let last_block_data = &self.db.get_with_prefix(&last_hash, *BLOCK_PREFIX).unwrap();
-
         let last_block = Block::deserialize_block(&last_block_data);
 
         if block.height < last_block.height {
@@ -120,8 +120,11 @@ impl BlockChain {
             return Err("block's time is less than last block's time".to_string());
         }
         if block.timestamp > last_block.timestamp + NEW_BLOCK_TIMEOUT {
-            return Err("block's time is more than new block generate's time".to_string())
+            return Err(
+                "block's time is more than new block generate's time".to_string(),
+            );
         }
+
         if !util::compare_slice_u8(last_hash, &block.prev_block_hash) {
             return Err(format!(
                 "{} not equal {}",
@@ -130,8 +133,16 @@ impl BlockChain {
             ));
         }
 
-        // check height
         let block_data = Block::serialize(&block);
+        if block_data.len() > MAX_BLOCK_SIZE {
+            return Err(format!(
+                "block size tool big, more than max size, {} > {}",
+                block_data.len(),
+                MAX_BLOCK_SIZE
+            ));
+        }
+
+
         self.db.put_with_prefix(
             &block.hash,
             &block_data,
@@ -152,7 +163,27 @@ impl BlockChain {
         Ok(())
     }
 
-    pub fn delete_blocks(&self, block_hash: &[u8], height: isize) {
+    // Notic: reindex utxos
+    // delete conflict block, including height's block
+    pub fn delete_conflict(&self, height: isize, prev_hash: Vec<u8>) {
+        let delete_hashes: Vec<Vec<u8>> = self.iter()
+            .filter(|block| block.height >= height)
+            .map(|block| block.hash)
+            .collect();
+        delete_hashes.into_iter().for_each(|hash| {
+            self.db.delete(&hash, *BLOCK_PREFIX)
+        });
+        let mut self_tip = self.tip.lock().unwrap();
+        *self_tip = prev_hash;
+        self.db.put_with_prefix(
+            *LAST_BLOCK_HASH_KEY,
+            &self_tip,
+            *LAST_BLOCK_HASH_PREFIX,
+        );
+    }
+
+    // Notic: reindex utxos
+    pub fn delete_blocks(&self, block_hash: &[u8], height: isize) -> Option<Vec<Vec<u8>>> {
         let block_iter = self.iter();
         let mut delete_hashes: Vec<Vec<u8>> = vec![];
         for block in block_iter {
@@ -163,12 +194,14 @@ impl BlockChain {
                 if util::compare_slice_u8(block_hash, &block.hash) {
                     delete_hashes = vec![];
                 } else {
+                    delete_hashes.push(block.hash.clone());
+
                     let mut self_tip = self.tip.lock().unwrap();
                     *self_tip = block.prev_block_hash.clone();
 
                     &self.db.put_with_prefix(
                         *LAST_BLOCK_HASH_KEY,
-                        &block.hash,
+                        &self_tip,
                         *LAST_BLOCK_HASH_PREFIX,
                     );
                 }
@@ -176,9 +209,10 @@ impl BlockChain {
             }
         }
 
-        delete_hashes.into_iter().for_each(|hash| {
+        delete_hashes.iter().for_each(|hash| {
             self.db.delete(&hash, *BLOCK_PREFIX)
         });
+        Some(delete_hashes)
     }
 
     // TODO optizme it

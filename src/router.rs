@@ -98,22 +98,54 @@ impl BlockLock {
                 util::encode_hex(block_hash),
                 new_block.height
             );
-            // clear confect blocks
-            self.bc.delete_blocks(&new_block.hash, new_block.height);
+            // clear conflict blocks
+            if let Some(hashes) = self.bc.delete_blocks(&new_block.hash, new_block.height) {
+                self.utxos.reindex();
+                hashes.iter().for_each(|hash| {
+                    debug!(LOG, "conflict block: {}", util::encode_hex(&hash))
+                });
+            }
         }
 
         // TODO check new block
-        let verify = new_block.transactions.iter().any(|ts| {
+        let verify = new_block.transactions.iter().all(|ts| {
             // transactions' input should in utxo
             if ts.is_coinbase() {
                 return true;
             }
 
-            ts.vin.iter().any(|vin| {
-                self.utxos
-                    .utxo(&vin.txid)
-                    .map(|outputs| outputs.outputs.get(&vin.vout).is_some())
-                    .is_some()
+            debug!(
+                LOG,
+                "check transaction, txid: {}, block: {}",
+                util::encode_hex(&ts.id),
+                util::encode_hex(&new_block.hash)
+            );
+            ts.vin.iter().all(|vin| {
+                let oupts = self.utxos.utxo(&vin.txid);
+                oupts.map_or_else(
+                    || {
+                        debug!(
+                            LOG,
+                            "transaction not found, txid: {}",
+                            util::encode_hex(&vin.txid)
+                        );
+                        false
+                    },
+                    |outputs| {
+                        let out = outputs.outputs.get(&vin.vout);
+                        if out.is_none() {
+                            debug!(
+                                LOG,
+                                "out:{} not found, txid: {}",
+                                &vin.vout,
+                                util::encode_hex(&vin.txid)
+                            );
+                            debug!(LOG, "outinfo: {:?}", out);
+                            return false;
+                        }
+                        true
+                    },
+                )
             })
         });
         if !verify {
@@ -143,6 +175,38 @@ impl BlockLock {
         self.bc.get_best_height()
     }
 
+    pub fn conflict(&self, remote_hashes: &Vec<Vec<u8>>) {
+        let height = self.best_height();
+        if height + 1 >= remote_hashes.len() as isize {
+            return;
+        }
+        let mut idx = (height + 1) as usize;
+        let remote_hashes_len = remote_hashes.len();
+        let block_iter = self.bc.iter();
+        let mut prev_hash = vec![];
+        let mut hash = None;
+        for block in block_iter {
+            let index = remote_hashes_len - idx;
+            if !util::compare_slice_u8(&block.hash, &remote_hashes[index]) {
+                prev_hash = block.prev_block_hash;
+                hash = Some((block.height, block.hash));
+                break;
+            }
+            idx -= 1;
+        }
+        if let Some((height, hash)) = hash {
+            warn!(
+                LOG,
+                "conflict block:{}, height:{}",
+                util::encode_hex(hash),
+                height
+            );
+            // delete conflict block
+            self.bc.delete_conflict(height, prev_hash);
+            self.utxos.reindex();
+        }
+    }
+
     pub fn balance(&self, addr: &str) -> HashMap<String, String> {
         let mut balance = 0;
         let pub_key_hash = util::decode_base58(addr.to_owned());
@@ -170,40 +234,6 @@ impl BlockLock {
     }
 
     // TODO Opz mining step
-    pub fn mine_new_block(
-        &self,
-        mine_addr: String,
-        mem_pool: &mut HashMap<String, Transaction>,
-    ) -> Result<String, String> {
-        let mut txs = vec![];
-        let cbtx = Transaction::new_coinbase_tx(mine_addr, "".to_owned());
-        txs.push(cbtx);
-        for ts in mem_pool.values() {
-            if self.bc.verify_transaction(ts) {
-                txs.push(ts.clone());
-            }
-        }
-        if txs.len() <= 1 {
-            return Err("no transactions".to_string());
-        }
-
-        let new_block = self.bc.mine_block(&txs);
-        if new_block.is_err() {
-            // delete dirty transaction
-            for ts in &txs {
-                mem_pool.remove(&util::encode_hex(&ts.id));
-            }
-            return Err(format!("{:?}", new_block.err()));
-        }
-        let new_block = new_block.unwrap();
-        self.utxos.update(&new_block);
-        for ts in &txs {
-            mem_pool.remove(&util::encode_hex(&ts.id));
-        }
-        Ok(util::encode_hex(&new_block.hash))
-    }
-
-    // TODO Opz mining step
     pub fn mine_new_block2(
         &self,
         mine_addr: String,
@@ -226,7 +256,7 @@ impl BlockLock {
         let (send, recv) = channel();
 
         thread::spawn(move || {
-            let new_block = bc.mine_block(&txs);
+            let new_block = bc.mine_block2(&txs);
             if new_block.is_err() {
                 error!(
                     LOG,

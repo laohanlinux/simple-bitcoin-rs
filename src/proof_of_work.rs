@@ -47,7 +47,6 @@ impl<'a> ProofOfWork<'a> {
             nonce = n;
             hash = util::sha256(&data);
             let hash_int: U256 = util::as_u256(&hash);
-            // info!(LOG, "hash_int: {:?}", hash_int);
             if hash_int < self.target {
                 break;
             }

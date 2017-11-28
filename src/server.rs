@@ -130,7 +130,6 @@ pub fn handle_transfer(
     transfer: Form<Transfer>,
 ) -> Json<Value> {
     let transfer = transfer.into_inner();
-    debug!(LOG, "{:?}", &transfer);
     if transfer.from.len() == 0 || !wallet::Wallet::validate_address(transfer.from.clone()) {
         return bad_data_json!("ERROR: From's address is not valid".to_owned());
     }
@@ -155,27 +154,18 @@ pub fn handle_transfer(
 
     let (to, amount) = (&transfer.to, transfer.amount as isize);
     let bc = &state.bc.lock().unwrap();
-    let mem_pool = state.mem_pool.clone();
-    let mem_pool = mem_pool.lock().unwrap();
-    let spend_utxos = {
-        // 1. get the input's reference transaction
-        let pub_key = util::public_key_to_vec(&from_wallet.public_key, false);
-        let mut spend_utxos = HashMap::new();
-        for (txid, tx) in &*mem_pool {
-            for vin in &tx.vin {
-                if vin.uses_key(&pub_key) {
-                    // it it from's unspend utxo
-                    let ref_out_txid = util::encode_hex(&vin.txid);
-                    let ref_out_idx = vin.vout;
-                    spend_utxos.entry(ref_out_txid).or_insert(vec![]).push(
-                        ref_out_idx,
-                    );
-                }
-            }
-        }
-        spend_utxos
-    };
-
+    let mem_pool = &state.mem_pool.lock().unwrap();
+    let mut spend_utxos = HashMap::new();
+    let pub_key = util::public_key_to_vec(&from_wallet.public_key, false);
+    mem_pool.iter().for_each(|(txid, tx)| {
+        tx.vin.iter().for_each(|vin| if vin.uses_key(&pub_key) {
+            let ref_out_txid = util::encode_hex(&vin.txid);
+            let ref_out_idx = vin.vout;
+            spend_utxos.entry(ref_out_txid).or_insert(vec![]).push(
+                ref_out_idx,
+            );
+        })
+    });
     let tx = bc.create_new_utxo_transaction(&from_wallet, to, amount, Some(spend_utxos));
     if tx.is_err() {
         return bad_data_json!(tx.err().unwrap());
@@ -188,6 +178,14 @@ pub fn handle_transfer(
         known_nodes[0].clone()
     };
     send_tx(&known_nodes, &central_node, &local_addr, &tx);
+
+    debug!(
+        LOG,
+        "transfer from: {} to: {} amount: {}",
+        &transfer.from,
+        &transfer.to,
+        &transfer.amount
+    );
     ok_json!()
 }
 
@@ -208,7 +206,7 @@ pub fn handle_addr(state: rocket::State<router::BlockState>, addrs: Json<Addr>) 
             }
         });
     }
-    request_blocks(state.known_nodes.clone(), &local_node);
+    request_blocks(&state.known_nodes, &local_node);
     ok_json!()
 }
 
@@ -241,7 +239,7 @@ pub fn handle_get_block_data(
 
     info!(
         LOG,
-        "get data, {}, {}",
+        "get data, type={}, id={}",
         &block_data.data_type,
         &block_data.id
     );
@@ -348,43 +346,25 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                     .or_else(|e| Err(e));
                 let res = res.and_then(|recv| recv.recv().map_err(|e| format!("{:?}", e)))
                     .and_then(|new_block| {
+                        info!(
+                            LOG,
+                            "🔨 🔨 🔨 mining a new block, hash is {}",
+                            util::encode_hex(&new_block.hash),
+                        );
+
                         // insert mininged block
                         // TODO sync add mined block by http
-                        let bc = bc.lock().unwrap();
-                        bc.add_new_block(&new_block, false)
-                            .and_then(|exists| {
-                                if !exists {
-                                    bc.update_utxo(&new_block);
-                                }
-                                Ok(())
-                            })
-                            .and_then(|_| {
-                                let new_block_hash = util::encode_hex(&new_block.hash);
-                                info!(
-                                    LOG,
-                                    "🔨 🔨 🔨 mining a new block, hash is {}",
-                                    &new_block_hash
-                                );
-                                new_block.transactions.into_iter().for_each(|ts| {
-                                    mem_pool.lock().unwrap().remove(&util::encode_hex(&ts.id));
-                                });
+                        new_block.transactions.iter().for_each(|ts| {
+                            mem_pool.lock().unwrap().remove(&util::encode_hex(&ts.id));
+                        });
 
-                                let dist_known_nodes = {
-                                    known_nodes.lock().unwrap().clone()
-                                };
-                                for node in &dist_known_nodes {
-                                    if *node != local_node.to_string() {
-                                        send_inv(
-                                            &known_nodes,
-                                            &node,
-                                            &local_node,
-                                            "block",
-                                            vec![util::decode_hex(&new_block_hash)],
-                                        )
-                                    }
-                                }
-                                Ok(())
-                            })
+                        let dist_known_nodes = {
+                            known_nodes.lock().unwrap().clone()
+                        };
+                        dist_known_nodes.iter().for_each(|node| {
+                            send_block(&known_nodes, node, &local_node, &new_block);
+                        });
+                        Ok(())
                     });
                 if res.is_ok() && mem_pool.lock().unwrap().len() >= MINING_SIZE {
                     continue;
@@ -406,9 +386,8 @@ pub fn handle_get_blocks(
     state: rocket::State<router::BlockState>,
     blocks: Json<GetBlocks>,
 ) -> Json<Value> {
-
     let bc = &state.bc.lock().unwrap();
-    let ref hashes: Vec<String> = bc.block_hashes();
+    let hashes: Vec<String> = bc.block_hashes();
     let hashes_vec: Vec<Vec<u8>> = hashes.iter().map(util::decode_hex).collect();
     send_inv(
         &state.known_nodes,
@@ -428,15 +407,15 @@ pub fn handle_version(
     let bc = &state.bc.lock().unwrap();
     let my_best_height = bc.best_height();
     let foreigner_best_height = version.best_height;
-    let local_node = state.local_node.clone();
+    let local_node = &state.local_node;
     if my_best_height < foreigner_best_height {
-        send_get_block(&state.known_nodes, &version.addr_from, &local_node);
+        send_get_block(&state.known_nodes, &version.addr_from, local_node);
     } else if my_best_height > foreigner_best_height {
         send_version(
             &state.known_nodes,
             &version.addr_from,
             "/version",
-            &local_node,
+            local_node,
             &bc.block_chain(),
         );
     }
@@ -455,10 +434,13 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
 
     let inv_type = &inv.inv_type;
     let add_from = &inv.add_from;
-    let local_node = state.local_node.clone();
+    let local_node = &state.local_node;
     if inv_type == "block" {
-        let block_in_transit = state.block_in_transit.clone();
+        let block_in_transit = &state.block_in_transit;
         let mut block_in_transit = block_in_transit.lock().unwrap();
+        // TODO add conflict logic
+        bc.conflict(&inv.items);
+
         let last_height = bc.best_height() as usize;
         if last_height > (inv.items.len() - 1) {
             return ok_json!();
@@ -474,7 +456,7 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         });
 
         let step = inv.items.len() - last_height - 1;
-        if step <= 0 {
+        if step == 0 {
             return ok_json!();
         }
         let mut items = inv.items[0..step].to_vec();
@@ -493,14 +475,14 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
         send_get_data(
             &state.known_nodes,
             add_from,
-            &local_node,
+            local_node,
             "block".to_owned(),
-            block_hash.clone(),
+            &block_hash,
         );
 
         let mut new_in_transit: Vec<Vec<u8>> = vec![];
         for b in &*block_in_transit {
-            if !util::compare_slice_u8(&b, &block_hash) {
+            if !util::compare_slice_u8(b, &block_hash) {
                 new_in_transit.push(b.clone());
             }
         }
@@ -521,9 +503,9 @@ pub fn handle_inv(state: rocket::State<router::BlockState>, inv: Json<Inv>) -> J
             send_get_data(
                 &state.known_nodes,
                 add_from,
-                &local_node,
+                local_node,
                 "tx".to_owned(),
-                txid,
+                &txid,
             );
         }
     }
@@ -538,7 +520,7 @@ pub fn handle_block(
 ) -> Json<Value> {
     info!(LOG, "do block handle");
     let bc = &state.bc.lock().unwrap();
-    let local_node = state.local_node.clone();
+    let local_node = &state.local_node;
     let central_node = {
         state.known_nodes.lock().unwrap()[0].to_string()
     };
@@ -582,7 +564,7 @@ pub fn handle_block(
         );
     });
     // TODO why do it in that.
-    let block_in_transit = state.block_in_transit.clone();
+    let block_in_transit = Arc::clone(&state.block_in_transit);
     {
         let mut bc_in_transit = block_in_transit.lock().unwrap();
         if bc_in_transit.len() > 0 {
@@ -590,9 +572,9 @@ pub fn handle_block(
             send_get_data(
                 &state.known_nodes,
                 &block_data.add_from,
-                &local_node,
+                local_node,
                 "block".to_owned(),
-                block_hash,
+                &block_hash,
             );
             *bc_in_transit = bc_in_transit[1..].to_vec();
         }
@@ -608,15 +590,14 @@ fn index() -> io::Result<NamedFile> {
 }
 
 // TODO, may be has better way to do it
-fn request_blocks(know_nodes: Arc<Mutex<Vec<String>>>, local_node: &str) {
+fn request_blocks(know_nodes: &Arc<Mutex<Vec<String>>>, local_node: &str) {
     let know_nodes_copy = {
-        let know_nodes = know_nodes.clone();
         let know_nodes = know_nodes.lock().unwrap();
-        know_nodes.clone().into_iter().map(|node| node.clone())
+        know_nodes.clone().to_vec()
     };
-    for node in know_nodes_copy {
-        send_get_block(&know_nodes, &node, local_node)
-    }
+    know_nodes_copy.iter().for_each(|node| {
+        send_get_block(know_nodes, node, local_node)
+    });
 }
 
 // path => /get_data
@@ -625,12 +606,12 @@ fn send_get_data(
     addr: &str,
     local_node: &str,
     kind: String,
-    id: Vec<u8>,
+    id: &[u8],
 ) {
     let data = GetData {
         add_from: local_node.to_owned(),
         data_type: kind,
-        id: util::encode_hex(&id),
+        id: util::encode_hex(id),
     };
     let data = serde_json::to_vec(&data).unwrap();
     do_post_request(known_nodes, addr, "/get_data", &data);
