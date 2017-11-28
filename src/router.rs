@@ -175,7 +175,7 @@ impl BlockLock {
         self.bc.get_best_height()
     }
 
-    pub fn conflict(&self, remote_hashes: &Vec<Vec<u8>>) {
+    pub fn conflict(&self, remote_hashes: &[Vec<u8>]) {
         let height = self.best_height();
         if height + 1 >= remote_hashes.len() as isize {
             return;

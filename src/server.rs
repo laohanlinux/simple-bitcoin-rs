@@ -171,13 +171,13 @@ pub fn handle_transfer(
         return bad_data_json!(tx.err().unwrap());
     }
     let tx = tx.unwrap();
-    let local_addr = state.local_node.clone();
-    let known_nodes = state.known_nodes.clone();
+    let local_addr = &state.local_node;
+    let known_nodes = &state.known_nodes;
     let central_node = {
         let known_nodes = known_nodes.lock().unwrap();
         known_nodes[0].clone()
     };
-    send_tx(&known_nodes, &central_node, &local_addr, &tx);
+    send_tx(known_nodes, &central_node, local_addr, &tx);
 
     debug!(
         LOG,
@@ -191,22 +191,22 @@ pub fn handle_transfer(
 
 #[post("/addr", format = "application/json", data = "<addrs>")]
 pub fn handle_addr(state: rocket::State<router::BlockState>, addrs: Json<Addr>) -> Json<Value> {
-    let local_node = state.local_node.clone();
-    let addr_list = addrs.addr_list.clone();
+    let local_node = &state.local_node;
+    let addr_list = &addrs.addr_list;
     {
-        let known_nodes_lock = state.known_nodes.clone();
+        let known_nodes_lock = Arc::clone(&state.known_nodes);
         let mut known_nodes = known_nodes_lock.lock().unwrap();
-        addr_list.into_iter().for_each(|addr| {
+        addr_list.iter().for_each(|addr| {
             let exist = known_nodes.clone().into_iter().all(|node| {
-                debug!(LOG, "{} {}", &node, &local_node);
-                node != addr
+                debug!(LOG, "{} {}", &node, local_node);
+                node != *addr
             });
             if exist {
-                known_nodes.push(addr);
+                known_nodes.push(addr.to_string());
             }
         });
     }
-    request_blocks(&state.known_nodes, &local_node);
+    request_blocks(&state.known_nodes, local_node);
     ok_json!()
 }
 
@@ -216,13 +216,13 @@ pub fn handle_get_heigt_block_data(
     height_data: Json<HeightBlock>,
 ) -> Json<Value> {
     let bc = &state.bc.lock().unwrap();
-    let local_node = state.local_node.clone();
+    let local_node = &state.local_node;
     let res = bc.block_with_height(height_data.height);
     if let Some(block) = res {
         send_block(
             &state.known_nodes,
             &height_data.add_from,
-            &local_node,
+            local_node,
             &block,
         );
         return ok_json!();
@@ -245,7 +245,7 @@ pub fn handle_get_block_data(
     );
     let get_type = &block_data.data_type;
     let bc = &state.bc.lock().unwrap();
-    let local_node = state.local_node.clone();
+    let local_node = &state.local_node;
     if get_type == "block" {
         let block_hash = &block_data.id;
         let block = bc.block(block_hash);
@@ -255,15 +255,14 @@ pub fn handle_get_block_data(
         send_block(
             &state.known_nodes,
             &block_data.add_from,
-            &local_node,
+            local_node,
             &block.unwrap(),
         );
     }
     if get_type == "tx" {
         let txid = &block_data.id;
         let tx = {
-            let mem_pool = state.mem_pool.clone();
-            let mem_pool = mem_pool.lock().unwrap();
+            let mem_pool = state.mem_pool.lock().unwrap();
             let tx = mem_pool.get(&txid.clone());
             if tx.is_none() {
                 return bad_data_json!(format!("{} not found in {}", &txid, &local_node));
@@ -276,7 +275,7 @@ pub fn handle_get_block_data(
             txid,
             &block_data.add_from
         );
-        send_tx(&state.known_nodes, &block_data.add_from, &local_node, &tx);
+        send_tx(&state.known_nodes, &block_data.add_from, local_node, &tx);
     }
 
     ok_json!()
@@ -293,16 +292,16 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
     // add new transaction into mempool
     {
         let mut mem_pool = state.mem_pool.lock().unwrap();
-        mem_pool.entry(txid).or_insert(ts.clone());
+        mem_pool.entry(txid).or_insert_with(|| ts.clone());
     }
     let run_mining = state.run_mining.load(Ordering::SeqCst);
-    if run_mining && state.mining_address.clone().len() > 0 {
-        info!(LOG, "node is mining...");
+    if run_mining && !state.mining_address.is_empty() {
+        info!(LOG, "mine node is mining...");
         return ok_json!();
     }
 
     // local node addr
-    let local_node = state.local_node.clone();
+    let local_node = Arc::clone(&state.local_node);
     let known_nodes = {
         let know_nodes = state.known_nodes.lock().unwrap();
         &*know_nodes.clone()
@@ -320,20 +319,20 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                 vec![txid.to_vec()],
             );
         });
-    } else if state.mining_address.clone().len() > 0 {
+    } else if !state.mining_address.is_empty() {
         //set mining state
         state.run_mining.store(true, Ordering::SeqCst);
-        let run_mining = state.run_mining.clone();
+        let run_mining = Arc::clone(&state.run_mining);
         // the local node is a mining node, start to mining!
-        let mining_addr = state.mining_address.clone();
-        let bc = state.bc.clone();
-        let mem_pool = state.mem_pool.clone();
-        let local_node = state.local_node.clone();
-        let known_nodes = state.known_nodes.clone();
+        let mining_addr = Arc::clone(&state.mining_address);
+        let bc = Arc::clone(&state.bc);
+        let mem_pool = Arc::clone(&state.mem_pool);
+        let local_node = Arc::clone(&state.local_node);
+        let known_nodes = Arc::clone(&state.known_nodes);
         thread::spawn(move || {
             info!(LOG, "{} start to mining...", &local_node);
             loop {
-                let mem_pool_clone = mem_pool.clone();
+                let mem_pool_clone = Arc::clone(&mem_pool);
                 let mem_pool_copy = {
                     mem_pool_clone.lock().unwrap().clone()
                 };
@@ -343,7 +342,7 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                 let res = bc.lock()
                     .unwrap()
                     .mine_new_block2(mining_addr.to_string(), &mem_pool_copy)
-                    .or_else(|e| Err(e));
+                    .or_else(Err);
                 let res = res.and_then(|recv| recv.recv().map_err(|e| format!("{:?}", e)))
                     .and_then(|new_block| {
                         info!(
