@@ -19,6 +19,7 @@ lazy_static! {
 }
 
 pub const DBFILE: &str = "{}/blockchain.db";
+pub const NEW_BLOCK_TIMEOUT: i64 = 60*20;
 
 // TODO add locker locks blockchain update
 pub struct BlockChain {
@@ -114,6 +115,12 @@ impl BlockChain {
                 block.height,
                 last_block.height
             ));
+        }
+        if block.timestamp <= last_block.timestamp {
+            return Err("block's time is less than last block's time".to_string());
+        }
+        if block.timestamp > last_block.timestamp + NEW_BLOCK_TIMEOUT {
+            return Err("block's time is more than new block generate's time".to_string())
         }
         if !util::compare_slice_u8(last_hash, &block.prev_block_hash) {
             return Err(format!(
