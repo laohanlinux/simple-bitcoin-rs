@@ -11,7 +11,7 @@ use super::merkle_tree::MerkleTree;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Block {
-    pub timestamp: i64,
+    pub timestamp: i32,
     pub prev_block_hash: Vec<u8>,
     pub transactions: Vec<Transaction>,
     pub nonce: isize,
@@ -24,7 +24,7 @@ pub struct Block {
 impl Block {
     pub fn new(transactions: Vec<Transaction>, prev_block_hash: Vec<u8>, height: isize) -> Block {
         let block = Block {
-            timestamp: time::get_time().sec,
+            timestamp: time::get_time().sec as i32,
             prev_block_hash: prev_block_hash,
             transactions: transactions,
             height: height,

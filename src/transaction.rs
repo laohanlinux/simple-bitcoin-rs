@@ -309,8 +309,8 @@ impl TXInput {
             pub_key: pub_key,
         }
     }
-    pub fn uses_key(&self, pub_key: &Vec<u8>) -> bool {
-        util::compare_slice_u8(&self.pub_key, &pub_key)
+    pub fn uses_key(&self, pub_key: &[u8]) -> bool {
+        util::compare_slice_u8(&self.pub_key, pub_key)
     }
 }
 
@@ -359,7 +359,7 @@ impl TXOutputs {
     }
 
     // TODO
-    pub fn deserialize_outputs(data: &Vec<u8>) -> TXOutputs {
+    pub fn deserialize_outputs(data: &[u8]) -> TXOutputs {
         serde_json::from_slice(data).unwrap()
     }
 }

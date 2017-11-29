@@ -19,7 +19,7 @@ lazy_static! {
 }
 
 pub const DBFILE: &str = "{}/blockchain.db";
-pub const NEW_BLOCK_TIMEOUT: i64 = 60 * 20;
+pub const NEW_BLOCK_TIMEOUT: i32 = 60 * 20;
 pub const MAX_BLOCK_SIZE: usize = 1024 * 1024;
 
 // TODO add locker locks blockchain update
@@ -309,9 +309,7 @@ impl BlockChain {
     pub fn get_block_hashes(&self) -> Vec<Vec<u8>> {
         let block_iter = self.iter();
         let mut blocks = vec![];
-        for block in block_iter {
-            blocks.push(block.hash);
-        }
+        block_iter.for_each(|block|{blocks.push(block.hash)});
         blocks
     }
 

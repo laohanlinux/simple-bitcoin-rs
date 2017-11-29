@@ -36,7 +36,7 @@ base64 = "*"
 threadpool = "1.0"
 io-context = "0.2.0"
 chan = "0.1.19" 
-clippy = {version = "*", optional = true}
+clippy = {version = "0.0.174", optional = true}
 base_emoji = {git = "https://github.com/badboy/base-emoji-rs.git"}
 
 rocket = "0.3.3"

@@ -9,12 +9,9 @@ use self::tokio_request::str::{get, post};
 use self::threadpool::ThreadPool;
 
 use std::sync::{Arc, Mutex};
-use std::io;
-use std::io::Write;
 use std::ops::Fn;
 
 use log::*;
-use util;
 
 lazy_static!{
     static ref POOL: Arc<Mutex<ThreadPool>> = Arc::new(Mutex::new(ThreadPool::new(10)));
@@ -116,15 +113,7 @@ pub fn put_job(data_arg: DataArg) {
                 addr,
                 );
         }
-        /* let body = result.body();
-           info!(
-            LOG,
-            "send get data successfully, URI => {}, data => {}",
-            addr,
-            String::from_utf8_lossy(body)
-        );*/
-        //writeln!(io::stdout(), "{}", String::from_utf8_lossy(body));
-    });
+   });
 }
 
 #[cfg(test)]

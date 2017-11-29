@@ -130,16 +130,16 @@ pub fn handle_transfer(
     transfer: Form<Transfer>,
 ) -> Json<Value> {
     let transfer = transfer.into_inner();
-    if transfer.from.len() == 0 || !wallet::Wallet::validate_address(transfer.from.clone()) {
+    if transfer.from.is_empty() || !wallet::Wallet::validate_address(transfer.from.clone()) {
         return bad_data_json!("ERROR: From's address is not valid".to_owned());
     }
-    if transfer.to.len() == 0 || !wallet::Wallet::validate_address(transfer.to.clone()) {
+    if transfer.to.is_empty() || !wallet::Wallet::validate_address(transfer.to.clone()) {
         return bad_data_json!("ERROR: To's address is not valid".to_owned());
     }
-    if transfer.secret_key.len() == 0 {
+    if transfer.secret_key.is_empty() {
         return bad_data_json!("ERROR: From's secret key is not valid".to_owned());
     }
-    if transfer.amount <= 0 {
+    if transfer.amount == u32::min_value() {
         return bad_data_json!("ERROR: amount must more than zero".to_owned());
     }
     let secret_key = util::decode_hex(&transfer.secret_key);
@@ -161,7 +161,7 @@ pub fn handle_transfer(
         tx.vin.iter().for_each(|vin| if vin.uses_key(&pub_key) {
             let ref_out_txid = util::encode_hex(&vin.txid);
             let ref_out_idx = vin.vout;
-            spend_utxos.entry(ref_out_txid).or_insert(vec![]).push(
+            spend_utxos.entry(ref_out_txid).or_insert_with(||vec![]).push(
                 ref_out_idx,
             );
         })
@@ -237,7 +237,7 @@ pub fn handle_get_block_data(
     block_data: Json<GetData>,
 ) -> Json<Value> {
 
-    info!(
+    debug!(
         LOG,
         "get data, type={}, id={}",
         &block_data.data_type,
@@ -365,10 +365,13 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                         });
                         Ok(())
                     });
-                if res.is_ok() && mem_pool.lock().unwrap().len() >= MINING_SIZE {
+               
+                if res.is_err(){
+                    error!(LOG, "mining faild, err: {:?}", res.err());
+                }
+                if mem_pool.lock().unwrap().len() >= MINING_SIZE {
                     continue;
                 }
-                error!(LOG, "mining faild, err: {:?}", res.err());
                 break;
             }
             info!(LOG, "{} stop to mining...", &local_node);
