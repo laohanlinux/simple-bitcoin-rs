@@ -76,13 +76,19 @@ impl Transaction {
         }
 
         // Build a list of inputs
-        for kv in &valid_outputs {
+        valid_outputs.iter().for_each(|kv| {
+            kv.1.iter().for_each(|out| {
+                let input = TXInput::new(util::decode_hex(&kv.0), *out, vec![], pub_key.clone());
+                inputs.push(input);
+            });
+        });
+        /*for kv in &valid_outputs {
             let txid = util::decode_hex(&kv.0);
             for out in kv.1 {
                 let input = TXInput::new(txid.clone(), *out, vec![], pub_key.clone());
                 inputs.push(input);
             }
-        }
+        }*/
         // Build a list of outputs
         outputs.push(TXOutput::new(amount, to));
         if acc > amount {
@@ -104,7 +110,7 @@ impl Transaction {
     }
 
     // TODO add
-    pub fn deserialize_transaction(data: &Vec<u8>) -> Transaction {
+    pub fn deserialize_transaction(data: &[u8]) -> Transaction {
         serde_json::from_slice(data).unwrap()
     }
 
@@ -227,24 +233,16 @@ impl Transaction {
         let mut inputs: Vec<TXInput> = vec![];
         let mut outputs: Vec<TXOutput> = vec![];
 
-        for vin in &self.vin {
-            let tx = TXInput {
-                txid: vin.txid.clone(),
-                vout: vin.vout.clone(),
-                signature: vec![],
-                pub_key: vec![],
-            };
+        self.vin.iter().for_each(|vin| {
+            let tx = TXInput::new(vin.txid.clone(), vin.vout.clone(), vec![], vec![]);
             inputs.push(tx);
-        }
+        });
+        self.vout.iter().for_each(|vout| outputs.push(vout.clone()));
 
-        for vout in &self.vout {
-            outputs.push(vout.clone());
-        }
         Transaction {
             id: self.id.clone(),
             vin: inputs,
             vout: outputs,
-           // lock_time: time::get_time().sec as u32,
         }
     }
 
