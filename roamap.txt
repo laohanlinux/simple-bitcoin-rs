@@ -6,6 +6,6 @@
 
 - add mult-thread for mining block
 
-- add Transaction Fees and preffered pack hight's Transaction
+- add transaction fees and preffered pack hight's transaction
 
 - add signature script 
