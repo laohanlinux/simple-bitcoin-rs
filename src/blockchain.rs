@@ -230,11 +230,7 @@ impl BlockChain {
 
     // FindUTXO finds all unspent transaction outputs and returns transactions with spent outputs removed
     pub fn find_utxo(&self) -> Option<HashMap<String, TXOutputs>> {
-        // utxo 未花费
         let mut utxo: HashMap<String, TXOutputs> = HashMap::new();
-        // 已花费，对应于输入，也就是说如果“输出”能找到一个“输入”引用它，那么它就是被消费了，
-        // 从最新的区块开始往前找，每找到一个区块，则将这些区块的输入放到spend_txos中，
-        // 如果某个“输出”在spend_txos中找到一个引用它的“输入”，则表示该输入被消费了
         let mut spent_txos: HashMap<String, Vec<isize>> = HashMap::new();
         let block_iter = self.iter();
         for block in block_iter {
@@ -265,10 +261,10 @@ impl BlockChain {
 
                 // TODO may be has error issue
                 if !transaction.is_coinbase() {
-                    for input in &transaction.vin {
+                    transaction.vin.iter().for_each(|input| {
                         let in_txid = util::encode_hex(&input.txid);
                         spent_txos.entry(in_txid).or_insert(vec![]).push(input.vout);
-                    }
+                    });
                 }
             }
         }
@@ -309,7 +305,7 @@ impl BlockChain {
     pub fn get_block_hashes(&self) -> Vec<Vec<u8>> {
         let block_iter = self.iter();
         let mut blocks = vec![];
-        block_iter.for_each(|block|{blocks.push(block.hash)});
+        block_iter.for_each(|block| blocks.push(block.hash));
         blocks
     }
 

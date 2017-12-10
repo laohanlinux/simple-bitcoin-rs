@@ -193,7 +193,7 @@ impl Transaction {
         let mut output_records = vec![output_row];
 
         let mut idx = 0;
-        for input in &self.vin {
+        self.vin.iter().for_each(|input| {
             let (mut signature, mut pub_key) = (
                 util::encode_hex(input.signature.clone()),
                 util::encode_hex(input.pub_key.clone()),
@@ -213,9 +213,9 @@ impl Transaction {
             ];
             input_records.push(Row::new(input_record));
             idx += 1;
-        }
+        });
         idx = 0;
-        for output in &self.vout {
+        self.vout.iter().for_each(|output| {
             let output_record = vec![
                 Cell::new(&format!("{}", idx)),
                 Cell::new(&format!("{:?}", output.value)),
@@ -223,7 +223,7 @@ impl Transaction {
             ];
             output_records.push(Row::new(output_record));
             idx += 1;
-        }
+        });
         (txid, input_records, output_records)
     }
 

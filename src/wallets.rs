@@ -41,9 +41,9 @@ impl Wallets {
 
     pub fn list_address(&self) -> Vec<String> {
         let mut address = vec![];
-        for (addr, _) in &self.wallets {
+        self.wallets.iter().for_each(|(addr, _)| {
             address.push(addr.clone());
-        }
+        });
         address
     }
 

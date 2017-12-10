@@ -33,9 +33,10 @@ impl MerkleTree {
         }
 
         let mut nodes = vec![];
-        for dataum in &data {
-            nodes.push(MerkleNode::new(&dataum));
-        }
+
+        data.iter().for_each(
+            |dataum| nodes.push(MerkleNode::new(dataum)),
+        );
 
         loop {
             let mut new_level = vec![];

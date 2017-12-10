@@ -60,9 +60,9 @@ impl Block {
 
     pub fn hash_transactions(&self) -> Vec<u8> {
         let mut transaction = vec![];
-        for tx in &self.transactions {
+        self.transactions.iter().for_each(|tx| {
             transaction.push(tx.serialize());
-        }
+        });
 
         let merkle_tree: MerkleTree = MerkleTree::new_merkle_tree(transaction);
         *merkle_tree.root.unwrap().data
