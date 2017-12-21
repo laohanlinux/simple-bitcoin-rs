@@ -20,12 +20,12 @@ use blockchain::BlockChain;
 use command::*;
 use router;
 use util;
-use utxo_set;
 use wallet;
 use pool;
 use block;
 
 const MINING_SIZE: usize = 1;
+const MEMPOOL_SIZE: usize = 10000000;
 
 #[get("/node/list")]
 pub fn handle_node_list(state: rocket::State<router::BlockState>) -> Json<Value> {
@@ -292,6 +292,10 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
     // add new transaction into mempool
     {
         let mut mem_pool = state.mem_pool.lock().unwrap();
+        if mem_pool.len() > MEMPOOL_SIZE {
+            warn!(LOG, "more than max mem_pool size");
+            return ok_json!(); 
+        }
         mem_pool.entry(txid).or_insert_with(|| ts.clone());
     }
     let run_mining = state.run_mining.load(Ordering::SeqCst);

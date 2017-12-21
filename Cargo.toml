@@ -39,9 +39,9 @@ chan = "0.1.19"
 clippy = {version = "0.0.174", optional = true}
 base_emoji = {git = "https://github.com/badboy/base-emoji-rs.git"}
 
-rocket = "0.3.3"
-rocket_codegen = "0.3.3"
-rocket_contrib = "0.3.3"
+rocket = "0.3.5"
+rocket_codegen = "0.3.5"
+rocket_contrib = "0.3.5"
 
 tokio-request = { git = "https://github.com/NeoLegends/tokio-request" }
 tokio-core = "0.1"
