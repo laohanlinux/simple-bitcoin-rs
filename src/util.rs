@@ -179,9 +179,11 @@ pub fn double_sha256(input_str: String) -> Vec<u8> {
 
 #[inline]
 pub fn public_key_to_vec(pub_key: &PublicKey, compressed: bool) -> Vec<u8> {
-    let full = Secp256k1::with_caps(ContextFlag::Full);
-    let array_vec = pub_key.serialize_vec(&full, compressed);
-    array_vec.to_vec()
+    if compressed {
+        return pub_key.serialize()[..].to_vec();
+    }else {
+        return pub_key.serialize_uncompressed()[..].to_vec();
+    }
 }
 
 #[inline]

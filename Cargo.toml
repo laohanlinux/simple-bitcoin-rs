@@ -7,7 +7,7 @@ authors = ["Rg <daimaldd@gmail.com>"]
 sha2 = "0.6.0"
 time = "0.1"
 tempdir = "*"
-secp256k1 = "0.7.1"
+secp256k1 = {version = "0.8.1", features = ["rand", "serde"]}
 hex = { git = "https://github.com/KokaKiwi/rust-hex.git"}
 util_rs = {git = "https://github.com/laohanlinux/util-rs.git"}
 compare = "*"
