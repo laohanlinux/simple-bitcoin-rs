@@ -16,7 +16,7 @@ use super::util;
 
 use std::collections::HashMap;
 
-const NETENV: u8 = 0u8;
+const NET_ENV: u8 = 0u8;
 
 pub const ADDRESS_CHECKSUM_LEN: usize = 4;
 
@@ -69,7 +69,7 @@ impl Wallet {
     pub fn get_address(&self) -> String {
         // rimpemd160 20bytes
         let mut public_key = Self::hash_pubkey(&util::public_key_to_vec(&self.public_key, false));
-        let version_payload = util::write_u8(NETENV);
+        let version_payload = util::write_u8(NET_ENV);
         // 0x00x1|rimpemd160
         let mut version_payload_clone = version_payload.clone();
         {
@@ -77,9 +77,9 @@ impl Wallet {
             public_key = version_payload_clone;
         }
 
-        assert!(public_key.len() == 21);
+        assert_eq!(public_key.len(), 21);
         let mut address_sum = util::checksum_address(&public_key);
-        assert!(address_sum.len() == 4);
+        assert_eq!(address_sum.len(), 4);
         // packet base58 payload
         let mut full_payload = Vec::new();
         {
@@ -105,9 +105,9 @@ impl Wallet {
             warn!(LOG, "address checksum is not equal");
             return false;
         }
-        let netenv = util::read_u8(&public_key[..1]);
-        if netenv != NETENV {
-            warn!(LOG, "address version is valid, {:?}, {:?}", netenv, NETENV);
+        let net_env = util::read_u8(&public_key[..1]);
+        if net_env != NET_ENV {
+            warn!(LOG, "address version is valid, {:?}, {:?}", net_env, NET_ENV);
             return false;
         }
         true

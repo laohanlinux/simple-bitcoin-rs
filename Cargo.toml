@@ -4,16 +4,11 @@ version = "0.1.0"
 authors = ["Rg <daimaldd@gmail.com>"]
 
 [dependencies]
-sha2 = "0.6.0"
-time = "0.1"
-tempdir = "*"
-secp256k1 = {version = "0.8.1", features = ["rand", "serde"]}
 hex = { git = "https://github.com/KokaKiwi/rust-hex.git"}
 util_rs = {git = "https://github.com/laohanlinux/util-rs.git"}
 compare = "*"
 rust-base58 = "*"
 bigint = "*"
-rand = "*"
 rust-crypto = "^0.2"
 crc = "^1.0.0"
 serde = "1.0"
@@ -47,6 +42,14 @@ tokio-request = { git = "https://github.com/NeoLegends/tokio-request" }
 tokio-core = "0.1"
 tokio-curl = "0.1"
 url = "1.2"
+
+sha2 = "0.6.0"
+time = "0.1"
+tempdir = "*"
+
+secp256k1 = {version = "0.8.1", features = ["rand", "serde"]}
+rand = "0.3"
+rustc-serialize = "0.3"
 
 [features]
 default = []

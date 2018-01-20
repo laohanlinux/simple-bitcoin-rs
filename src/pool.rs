@@ -15,7 +15,6 @@ use log::*;
 
 lazy_static!{
     static ref POOL: Arc<Mutex<ThreadPool>> = Arc::new(Mutex::new(ThreadPool::new(10)));
-//    static ref POOL: Arc<RwLock<ThreadPool>> = Arc::new(RwLock::new(ThreadPool::new(10)));
 }
 
 pub struct DataArg {

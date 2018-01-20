@@ -54,6 +54,7 @@ mod server;
 mod command;
 mod router;
 mod pool;
+mod mine;
 
 pub mod cli;
 pub mod log;

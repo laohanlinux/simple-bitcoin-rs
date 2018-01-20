@@ -288,7 +288,7 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
     let ts: Transaction = serde_json::from_slice(txdata).unwrap();
     let txid = util::encode_hex(&ts.id);
 
-    debug!(LOG, "get a transaction, txid: {}", &txid);
+    debug!(LOG, "🎩 get a transaction, txid: {}", &txid);
     // add new transaction into mempool
     {
         let mut mem_pool = state.mem_pool.lock().unwrap();
@@ -300,7 +300,7 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
     }
     let run_mining = state.run_mining.load(Ordering::SeqCst);
     if run_mining && !state.mining_address.is_empty() {
-        info!(LOG, "mine node is mining...");
+        info!(LOG, "👊 mine node is mining, try next time");
         return ok_json!();
     }
 
@@ -334,7 +334,7 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
         let local_node = Arc::clone(&state.local_node);
         let known_nodes = Arc::clone(&state.known_nodes);
         thread::spawn(move || {
-            info!(LOG, "{} start to mining...", &local_node);
+            info!(LOG, "🚡 {} start to mining...", &local_node);
             loop {
                 let mem_pool_clone = Arc::clone(&mem_pool);
                 let mem_pool_copy = {
@@ -371,14 +371,14 @@ pub fn handle_tx(state: rocket::State<router::BlockState>, tx: Json<TX>) -> Json
                     });
                
                 if res.is_err(){
-                    error!(LOG, "mining faild, err: {:?}", res.err());
+                    error!(LOG, "😭 mining faild, err: {:?}", res.err());
                 }
                 if mem_pool.lock().unwrap().len() >= MINING_SIZE {
                     continue;
                 }
                 break;
             }
-            info!(LOG, "{} stop to mining...", &local_node);
+            info!(LOG, "📡 {} stop to mining...", &local_node);
             // reset
             run_mining.store(false, Ordering::SeqCst);
         });

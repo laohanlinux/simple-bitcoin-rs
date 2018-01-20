@@ -18,11 +18,11 @@ use self::bigint::U256;
 use self::sha2::{Sha256, Digest as Sha256Digest};
 use self::secp256k1::{Signature, Secp256k1, Message, ContextFlag};
 use self::secp256k1::key::{SecretKey, PublicKey};
+use self::rand::{Rng, thread_rng};
 use self::crypto::ripemd160;
 use self::crypto::digest::Digest as Ripemd160Digest;
 use self::crc::crc32;
 use self::rust_base58::{ToBase58, FromBase58};
-use self::rand::thread_rng;
 use self::quick_error::ResultExt;
 use self::byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use self::base64::{encode as encode64, decode as decode64};
@@ -202,9 +202,10 @@ pub fn try_recover_secret_key(origin_secret_key: &[u8]) -> Result<SecretKey, Str
 }
 
 pub fn new_key_pair() -> (SecretKey, PublicKey) {
-    let full = Secp256k1::new();
+    let full = Secp256k1::with_caps(ContextFlag::Full);
     full.generate_keypair(&mut thread_rng()).unwrap()
 }
+
 // return signature der string
 pub fn sign(msg: &Message, secret_key: &SecretKey) -> Vec<u8> {
     let full = Secp256k1::with_caps(ContextFlag::Full);

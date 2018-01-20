@@ -21,7 +21,7 @@ const TARGETBITS: usize = 16;
 
 pub struct ProofOfWork<'a> {
     pub block: &'a Block,
-    target: U256,
+    pub target: U256,
 }
 
 impl<'a> ProofOfWork<'a> {
@@ -62,7 +62,7 @@ impl<'a> ProofOfWork<'a> {
     }
 
     // |prevblock_hash|block_transaction_hash|timestamp|targetbits|nonce|
-    fn prepare_data(&self, nonce: isize) -> Vec<u8> {
+    pub fn prepare_data(&self, nonce: isize) -> Vec<u8> {
         let prev_block_hash = &self.block.prev_block_hash;
         let prev_block_end = prev_block_hash.len();
         let hash_transactions = &self.block.hash_transactions();
