@@ -393,7 +393,7 @@ impl BlockChain {
         }
 
         let mut prevs_tx: HashMap<isize, Transaction> = HashMap::new();
-        let mut idx = 0;
+       /* let mut idx = 0;
         for vin in &tx.vin {
             let prev_tx = {
                 let res_pre_tx = self.find_transaction(&vin.txid);
@@ -404,6 +404,13 @@ impl BlockChain {
             };
             prevs_tx.insert(idx, prev_tx);
             idx += 1;
+        }*/
+        for (idx, vin) in tx.vin.iter().enumerate() {
+            if let Some(prev_tx) = self.find_transaction(&vin.txid) {
+                prevs_tx.insert(idx as isize, prev_tx);
+            }else {
+                return false;
+            }
         }
         tx.verify(&prevs_tx)
     }
