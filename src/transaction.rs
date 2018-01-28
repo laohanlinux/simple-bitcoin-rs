@@ -256,29 +256,25 @@ impl Transaction {
         }
 
         // check input wether reference some pre block output
-        self.vin.iter().fold(0, |acc, _| {
-            assert!(prev_txs.get(&acc).is_some());
-            acc + 1
-        });
+        for (idx, _) in self.vin.iter().enumerate(){
+            assert!(prev_txs.get(&(idx as isize)).is_some());
+        }
 
         let tx_copy = &mut self.trimmed_copy();
         let mut verify = true;
-        self.vin.iter().fold(0, |acc, tx_input| {
+        for (idx, tx_input) in self.vin.iter().enumerate() {
             if !verify {
-                return acc + 1;
+               break; 
             }
-            let prev_tx: &Transaction = prev_txs.get(&acc).unwrap();
-            tx_copy.vin[acc as usize].signature = vec![];
-            tx_copy.vin[acc as usize].pub_key =
+            let prev_tx: &Transaction = prev_txs.get(&(idx as isize)).unwrap();
+            tx_copy.vin[idx as usize].signature = vec![];
+            tx_copy.vin[idx as usize].pub_key =
                 prev_tx.vout[tx_input.vout as usize].pub_key_hash.clone();
 
             let origin_data_to_sign = util::packet_sign_content(&tx_copy);
             verify = util::verify(&tx_input.pub_key, &tx_input.signature, origin_data_to_sign);
-
-            tx_copy.vin[acc as usize].pub_key = vec![];
-            acc + 1
-        });
-
+            tx_copy.vin[idx as usize].pub_key = vec![];
+        }
         verify
     }
 }
